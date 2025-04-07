@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { FiDownload, FiCreditCard, FiClock } from 'react-icons/fi';
 import { FaPesoSign } from 'react-icons/fa6';
-import EarningsChart from '../../components/Dashboard/EarningsChart';
-import TransferToAccount from '../../components/Dashboard/TransferToAccount';
+import EarningsChart from '../../components/Earnings/EarningsChart';
+import TransferToAccount from '../../components/Earnings/TransferToAccount';
 
 const EarningsDashboard = () => {
   const [dateRange, setDateRange] = useState('month');

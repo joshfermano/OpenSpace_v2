@@ -6,7 +6,7 @@ interface User {
   firstName: string;
   lastName: string;
   email: string;
-  phoneNumber: string; // Changed from 'phone' to 'phoneNumber' to match server
+  phoneNumber: string;
   profileImage?: string;
   role: 'user' | 'host' | 'admin';
   verificationLevel: 'none' | 'basic' | 'verified';
@@ -38,7 +38,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const clearError = () => setError(null);
 
-  // Check auth status on mount and when auth:expired event is fired
   useEffect(() => {
     const checkAuth = async () => {
       try {

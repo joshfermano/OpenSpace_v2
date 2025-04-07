@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
 import { useAuth } from '../../contexts/AuthContext';
 
-const Login = () => {
+const AdminLogin = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
 
@@ -41,13 +41,10 @@ const Login = () => {
       const loggedInUser = await login(formData.email, formData.password);
 
       if (loggedInUser) {
-        // Redirect based on user role
         if (loggedInUser.role === 'admin') {
           navigate('/admin/dashboard');
-        } else if (loggedInUser.role === 'host') {
-          navigate('/host/dashboard');
         } else {
-          navigate('/dashboard');
+          setError('Access denied. Only administrators can log in here.');
         }
       } else {
         setError('Invalid email or password');
@@ -63,10 +60,10 @@ const Login = () => {
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-8 rounded-xl shadow-lg md:w-[450px]">
       <div className="flex flex-col items-center space-y-2 mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Welcome Back
+          Admin Login
         </h1>
         <p className="text-md text-gray-500 dark:text-gray-400">
-          Sign in to your account to continue
+          Sign in to access the admin portal
         </p>
       </div>
 
@@ -85,7 +82,7 @@ const Login = () => {
           <label
             htmlFor="email"
             className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Email
+            Admin Email
           </label>
           <input
             type="email"
@@ -94,7 +91,7 @@ const Login = () => {
             value={formData.email}
             onChange={handleEmailChange}
             className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            placeholder="juandelacruz@example.com"
+            placeholder="admin@openspace.com"
             disabled={isSubmitting}
             required
           />
@@ -134,46 +131,20 @@ const Login = () => {
           </div>
         </div>
 
-        <div className="flex items-center">
-          <input
-            id="remember-me"
-            name="remember-me"
-            type="checkbox"
-            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-          <label
-            htmlFor="remember-me"
-            className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Remember me
-          </label>
-        </div>
-
         <button
           type="submit"
           disabled={isLoading || isSubmitting}
-          className="w-full p-3 rounded-lg bg-darkBlue text-light dark:bg-light dark:text-darkBlue hover:bg-blue-600 hover:text-white font-medium transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
-          {isSubmitting || isLoading ? 'Signing in...' : 'Sign in'}
+          className="w-full p-3 rounded-lg bg-gray-800 text-white dark:bg-gray-700 dark:text-white hover:bg-gray-700 font-medium transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+          {isSubmitting || isLoading ? 'Signing in...' : 'Admin Sign In'}
         </button>
 
         <div className="text-center">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Don't have an account?{' '}
+            Not an admin?{' '}
             <Link
-              to="/auth/register"
+              to="/auth/login"
               className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
-              Sign up now
-            </Link>
-          </p>
-        </div>
-
-        {/* Admin Link - Minimal and Subtle */}
-        <div className="text-center pt-2 border-t border-gray-200 dark:border-gray-700 mt-4">
-          <p className="text-xs text-gray-500 dark:text-gray-500">
-            Admin?{' '}
-            <Link
-              to="/auth/admin-login"
-              className="text-gray-600 dark:text-gray-400 hover:underline">
-              Sign in here
+              Back to regular login
             </Link>
           </p>
         </div>
@@ -182,4 +153,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default AdminLogin;

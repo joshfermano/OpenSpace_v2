@@ -10,18 +10,15 @@ export const getAllBookings = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Pagination
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // Build filter based on query parameters
     const filter: Record<string, any> = {};
     if (req.query.status) {
       filter.bookingStatus = req.query.status;
     }
 
-    // Get bookings with populated references
     const bookings = await Booking.find(filter)
       .populate('room', 'title images location type')
       .populate('user', 'firstName lastName email')
@@ -714,7 +711,6 @@ export const getBookingById = async (
     const { bookingId } = req.params;
     const userId = req.user.id;
 
-    // Check if booking exists
     const booking = await Booking.findById(bookingId)
       .populate('room', 'title images location type price houseRules')
       .populate('user', 'firstName lastName email phoneNumber profileImage')

@@ -47,6 +47,15 @@ export interface IUser extends Document {
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
+interface UserModel extends mongoose.Model<IUser> {
+  getUserVerificationCounts(): Promise<{
+    total: number;
+    verified: number;
+    unverified: number;
+    banned: number;
+  }>;
+}
+
 const userSchema = new Schema<IUser>(
   {
     email: {
@@ -149,6 +158,47 @@ const userSchema = new Schema<IUser>(
   }
 );
 
+userSchema.statics.getUserVerificationCounts = async function () {
+  try {
+    console.log('Calculating user verification counts...');
+
+    const total = await this.countDocuments({});
+    console.log(`Total users: ${total}`);
+
+    // Get verified users (users with verificationLevel of 'verified' or 'admin')
+    const verified = await this.countDocuments({
+      verificationLevel: { $in: ['verified', 'admin'] },
+    });
+    console.log(`Verified users: ${verified}`);
+
+    // Get banned users
+    const banned = await this.countDocuments({ active: false });
+    console.log(`Banned users: ${banned}`);
+
+    // Calculate unverified users (excluding banned users)
+    const activeUnverified = await this.countDocuments({
+      verificationLevel: 'basic',
+      active: true,
+    });
+    console.log(`Active unverified users: ${activeUnverified}`);
+
+    return {
+      total,
+      verified,
+      unverified: activeUnverified,
+      banned,
+    };
+  } catch (error) {
+    console.error('Error in getUserVerificationCounts:', error);
+    return {
+      total: 0,
+      verified: 0,
+      unverified: 0,
+      banned: 0,
+    };
+  }
+};
+
 userSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
@@ -159,7 +209,6 @@ userSchema.methods.comparePassword = async function (
   }
 };
 
-// Pre-save hook to hash password
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
 
@@ -172,11 +221,10 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-// Method to compare password
 userSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-export default mongoose.model<IUser>('User', userSchema);
+export default mongoose.model<IUser, UserModel>('User', userSchema);

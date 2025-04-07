@@ -23,80 +23,71 @@ export const protect = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    let token: string | undefined;
+    let token;
 
+    // Check for token in Authorization header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith('Bearer')
     ) {
-      [, token] = req.headers.authorization.split(' ');
-    } else if (req.cookies.token) {
+      token = req.headers.authorization.split(' ')[1];
+      console.log('Token found in Authorization header');
+    }
+    // Also check in cookies
+    else if (req.cookies.token) {
       token = req.cookies.token;
+      console.log('Token found in cookies');
     }
 
     if (!token) {
+      console.log('No token found in request');
       res.status(401).json({
         success: false,
-        message: 'Access denied. Please log in.',
+        message: 'Not authorized, please login',
       });
       return;
     }
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET is not defined in environment variables');
+    // Log token first 10 chars for debugging
+    console.log('Processing token:', token.substring(0, 10) + '...');
+
+    // Verify token
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string
+    ) as JwtPayload;
+    console.log('Token verified, user ID:', decoded.userId);
+
+    // Find user by id
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      console.log('User not found for ID:', decoded.userId);
+      res.status(401).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
     }
 
-    try {
-      const decoded = jwt.verify(token, secret) as JwtPayload;
-
-      const user = await User.findById(decoded.userId)
-        .select('-password')
-        .lean<IUser>();
-
-      if (!user) {
-        res.status(401).json({
-          success: false,
-          message: 'User not found or session expired',
-        });
-        return;
-      }
-
-      if ('active' in user && user.active === false) {
-        res.status(403).json({
-          success: false,
-          message: 'Your account has been suspended. Please contact support.',
-        });
-        return;
-      }
-
-      req.user = user;
-      next();
-    } catch (error) {
-      if (error instanceof jwt.JsonWebTokenError) {
-        res.status(401).json({
-          success: false,
-          message: 'Invalid token. Please log in again.',
-        });
-        return;
-      }
-      if (error instanceof jwt.TokenExpiredError) {
-        res.status(401).json({
-          success: false,
-          message: 'Session expired. Please log in again.',
-        });
-        return;
-      }
-      throw error;
+    // Check if user is banned
+    if (user.active === false) {
+      console.log('User is banned:', decoded.userId);
+      res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated',
+      });
+      return;
     }
-  } catch (error) {
-    console.error(
-      'Authentication error:',
-      error instanceof Error ? error.message : error
-    );
-    res.status(500).json({
+
+    // Attach user to request
+    req.user = user;
+    console.log('User attached to request, role:', user.role);
+    next();
+  } catch (error: any) {
+    console.error('Authentication error:', error.message);
+    res.status(401).json({
       success: false,
-      message: 'Internal server error during authentication',
+      message: 'Not authorized, token failed',
     });
   }
 };
@@ -106,32 +97,12 @@ export const adminOnly = (
   res: Response,
   next: NextFunction
 ): void => {
-  try {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
-      return;
-    }
-
-    if (req.user.role !== 'admin') {
-      res.status(403).json({
-        success: false,
-        message: 'Access denied: Admin privileges required',
-      });
-      return;
-    }
-
+  if (req.user && req.user.role === 'admin') {
     next();
-  } catch (error) {
-    console.error(
-      'Admin authorization error:',
-      error instanceof Error ? error.message : error
-    );
-    res.status(500).json({
+  } else {
+    res.status(403).json({
       success: false,
-      message: 'Internal server error during authorization',
+      message: 'Not authorized, admin access required',
     });
   }
 };

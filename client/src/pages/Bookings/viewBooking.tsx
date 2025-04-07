@@ -31,10 +31,8 @@ const ViewBooking = () => {
   const [loading, setLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
 
-  // Fetch booking data
   useEffect(() => {
     const fetchBooking = async () => {
-      // In a real app, you would fetch this data from your API
       try {
         // Mock data for demonstration
         if (user && user.bookings) {

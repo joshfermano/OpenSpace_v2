@@ -234,7 +234,6 @@ export const logout = (_req: Request, res: Response): void => {
   });
 };
 
-// Get current user
 export const getCurrentUser = async (
   req: Request,
   res: Response
@@ -727,7 +726,6 @@ export const uploadIdVerification = async (
   }
 };
 
-// Verify user ID document (admin only)
 export const verifyUserIdDocument = async (
   req: Request,
   res: Response
@@ -797,7 +795,83 @@ export const verifyUserIdDocument = async (
   }
 };
 
-// Get list of users with pending ID verification (admin only)
+export const checkAdminExists = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin' });
+
+    res.status(200).json({
+      success: true,
+      adminExists: adminCount > 0,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error checking admin existence',
+      error: error.message,
+    });
+  }
+};
+
+export const initialAdminSetup = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { email, password, firstName, lastName, phoneNumber, setupCode } =
+      req.body;
+
+    const validSetupCode = process.env.ADMIN_SETUP_CODE;
+    if (!validSetupCode || setupCode !== validSetupCode) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid setup code',
+      });
+      return;
+    }
+
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    if (adminCount > 0) {
+      res.status(400).json({
+        success: false,
+        message:
+          'Admin account already exists. This setup can only be used once.',
+      });
+      return;
+    }
+
+    const user = await User.create({
+      email,
+      password,
+      firstName,
+      lastName,
+      phoneNumber: phoneNumber || '',
+      profileImage: '',
+      role: 'admin',
+      verificationLevel: 'admin',
+      isEmailVerified: true,
+      isPhoneVerified: true,
+    });
+
+    const userResponse = user.toObject();
+    userResponse.password = undefined;
+
+    res.status(201).json({
+      success: true,
+      message: 'Initial admin user created successfully',
+      user: userResponse,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error creating initial admin user',
+      error: error.message,
+    });
+  }
+};
+
 export const getPendingIdVerifications = async (
   req: Request,
   res: Response

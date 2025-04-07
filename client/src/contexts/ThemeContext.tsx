@@ -13,14 +13,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
   useEffect(() => {
-    // On mount, read the preference from localStorage and set the theme
     const savedTheme = localStorage.getItem('theme');
 
     if (savedTheme) {
-      // If we have a saved preference, use it
       setDarkMode(savedTheme === 'dark');
     } else {
-      // Otherwise, use system preference
       const systemDark = window.matchMedia(
         '(prefers-color-scheme: dark)'
       ).matches;
@@ -30,7 +27,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    // When darkMode changes, update the document class
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {

@@ -6,6 +6,10 @@ import { protect, adminOnly } from '../middlewares/authMiddleware';
 const router = express.Router();
 
 // ===== Public routes =====
+// Public routes for admin setup
+router.get('/check-admin-exists', authController.checkAdminExists);
+router.post('/initial-admin-setup', authController.initialAdminSetup);
+
 // Authentication
 router.post('/register', authController.register);
 router.post('/login', authController.login);
@@ -73,8 +77,11 @@ router.patch(
   '/admin/id-verification/:userId',
   authController.verifyUserIdDocument
 );
+router.patch(
+  '/admin/id-verification/:userId',
+  authController.verifyUserIdDocument
+);
 router.patch('/admin/ban/:userId', authController.banUser);
 router.patch('/admin/unban/:userId', authController.unbanUser);
-router.delete('/admin/user/:userId', authController.deleteUser);
 
 export default router;

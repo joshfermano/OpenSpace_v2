@@ -104,7 +104,7 @@ const Navbar = () => {
             <div className="hidden md:flex justify-between items-center gap-4">
               {isAdmin ? (
                 <NavLink
-                  to="/admin"
+                  to="/admin/dashboard"
                   className="flex items-center gap-2 text-md px-3 py-1 border rounded-lg bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 hover:scale-105 border-blue-700 dark:border-blue-600 transition duration-500">
                   <MdAdminPanelSettings className="text-xl" /> Admin
                 </NavLink>
@@ -171,7 +171,7 @@ const Navbar = () => {
                 <>
                   {isAdmin ? (
                     <NavLink
-                      to="/admin"
+                      to="/admin/dashboard"
                       className={({ isActive }) =>
                         `flex items-center gap-2 text-blue-600 dark:text-blue-400 ${getNavLinkClass(
                           {

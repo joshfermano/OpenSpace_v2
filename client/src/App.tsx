@@ -24,6 +24,7 @@ import NotFound from './pages/Ui/NotFound';
 // Auth Pages
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
+import AdminLogin from './pages/Auth/AdminLogin';
 import AdminRegister from './pages/Auth/AdminRegister';
 
 // User Pages
@@ -166,14 +167,6 @@ const router = createBrowserRouter(
               </ProtectedRoute>
             }
           />
-          <Route
-            path="register"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminRegister />
-              </ProtectedRoute>
-            }
-          />
         </Route>
 
         {/* 404 Page */}
@@ -184,6 +177,8 @@ const router = createBrowserRouter(
       <Route path="/auth" element={<AuthLayout />}>
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
+        <Route path="admin-login" element={<AdminLogin />} />
+        <Route path="admin-register" element={<AdminRegister />} />
       </Route>
     </>
   )

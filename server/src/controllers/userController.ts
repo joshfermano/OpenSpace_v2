@@ -14,6 +14,17 @@ function getUserFromRequest(req: Request, res: Response): IUser | null {
     });
     return null;
   }
+
+  // Handle both possible structures
+  const user = req.user as any;
+  if (!user._id && !user.id) {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid user data in request',
+    });
+    return null;
+  }
+
   return req.user as IUser;
 }
 
@@ -32,6 +43,60 @@ export interface HostInfo {
   hostSince: Date;
 }
 
+export const getDashboardSummary = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    if (req.user?.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to access admin dashboard',
+      });
+      return;
+    }
+
+    console.log('Processing dashboard summary request...');
+
+    // Get user verification counts using the static method
+    const userCounts = await User.getUserVerificationCounts();
+    console.log('User counts:', userCounts);
+
+    const pendingVerifications = await User.countDocuments({
+      'identificationDocument.verificationStatus': 'pending',
+    });
+
+    // Get space and host statistics
+    const totalSpaces = await Room.countDocuments();
+    const hostCount = await User.countDocuments({ role: 'host' });
+
+    // Prepare the response data
+    const summaryData = {
+      totalUsers: userCounts.total,
+      verifiedUsers: userCounts.verified,
+      unverifiedUsers: userCounts.unverified,
+      bannedUsers: userCounts.banned,
+      pendingVerifications,
+      totalSpaces,
+      hostCount,
+    };
+
+    console.log('Dashboard Summary Data:', summaryData);
+
+    res.status(200).json({
+      success: true,
+      data: summaryData,
+    });
+  } catch (error: any) {
+    console.error('Error fetching dashboard summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard summary',
+      error: error.message,
+    });
+  }
+};
+
 // Get all users (admin only)
 export const getAllUsers = async (
   req: Request,
@@ -41,7 +106,6 @@ export const getAllUsers = async (
     const currentUser = getUserFromRequest(req, res);
     if (!currentUser) return;
 
-    // Only admin can access all users
     if (currentUser.role !== 'admin') {
       res.status(403).json({
         success: false,
@@ -123,9 +187,7 @@ export const getUserById = async (
       return;
     }
 
-    // Only admins or the user themselves can see full details
     if (req.user.role !== 'admin' && req.user.id !== userId) {
-      // For other users, return limited public information
       const publicUser = {
         _id: user._id,
         firstName: user.firstName,
@@ -155,14 +217,27 @@ export const getUserById = async (
   }
 };
 
-// Update user profile
 export const updateProfile = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const userId = req.user.id;
-    const { firstName, lastName, profileImage, address, hostInfo } = req.body;
+    // Get user ID from authenticated user
+    const currentUser = getUserFromRequest(req, res);
+    if (!currentUser) return;
+
+    const userId = currentUser._id;
+
+    const {
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      profileImage,
+      role,
+      hostInfo,
+      address,
+    } = req.body;
 
     // Check if user exists
     const user = await User.findById(userId);
@@ -174,10 +249,13 @@ export const updateProfile = async (
       return;
     }
 
-    // Update user fields
+    // Update basic user information
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
+    if (email) user.email = email;
+    if (phoneNumber) user.phoneNumber = phoneNumber;
     if (profileImage) user.profileImage = profileImage;
+    if (role) user.role = role;
 
     // Update address if provided
     if (address) {
@@ -187,14 +265,15 @@ export const updateProfile = async (
       };
     }
 
-    // Update host info if user is a host
-    if (hostInfo && user.role === 'host') {
+    // Update host info if provided
+    if (hostInfo && (role === 'host' || user.role === 'host')) {
       const currentDate = new Date();
       user.hostInfo = {
         ...user.hostInfo,
         bio: hostInfo.bio || user.hostInfo?.bio || '',
         languagesSpoken:
           hostInfo.languagesSpoken || user.hostInfo?.languagesSpoken || [],
+        responseTime: hostInfo.responseTime || user.hostInfo?.responseTime,
         hostSince: user.hostInfo?.hostSince || currentDate,
       };
     }
@@ -636,12 +715,18 @@ export const uploadProfileImage = async (
   res: Response
 ): Promise<void> => {
   try {
-    const currentUser = getUserFromRequest(req, res);
-    if (!currentUser) return;
+    const userId = req.user?._id || req.user?.id;
 
-    const userId = currentUser._id;
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      });
+      return;
+    }
+
+    // Check if file exists
     const file = req.file;
-
     if (!file) {
       res.status(400).json({
         success: false,
@@ -650,13 +735,13 @@ export const uploadProfileImage = async (
       return;
     }
 
-    // Get the file path for storage
-    const filePath = file.path.replace('src/', '');
+    // Create public URL path without the 'public' prefix
+    const relativePath = `/uploads/profiles/${file.filename}`;
 
     // Update user's profile image
     const user = await User.findByIdAndUpdate(
       userId,
-      { profileImage: filePath },
+      { profileImage: relativePath },
       { new: true }
     ).select('-password');
 
@@ -672,11 +757,12 @@ export const uploadProfileImage = async (
       success: true,
       message: 'Profile image uploaded successfully',
       data: {
-        profileImage: filePath,
+        profileImage: relativePath,
         user,
       },
     });
   } catch (error: any) {
+    console.error('Profile image upload error:', error);
     res.status(500).json({
       success: false,
       message: 'Error uploading profile image',
@@ -685,7 +771,6 @@ export const uploadProfileImage = async (
   }
 };
 
-// Get user profile (based on authenticated user)
 export const getUserProfile = async (
   req: Request,
   res: Response

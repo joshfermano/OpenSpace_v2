@@ -2,19 +2,46 @@ import express from 'express';
 import * as userController from '../controllers/userController';
 import { protect, adminOnly } from '../middlewares/authMiddleware';
 import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
 
-// Configure multer for file uploads
+const createUploadDir = async () => {
+  try {
+    await fs.mkdir('./public/uploads/profiles', { recursive: true });
+  } catch (err) {
+    console.error('Error creating upload directory:', err);
+  }
+};
+createUploadDir();
+
 const storage = multer.diskStorage({
   destination: function (_req, _file, cb) {
-    cb(null, './src/uploads/');
+    cb(null, './public/uploads/profiles/');
   },
   filename: function (_req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    const ext = path.extname(file.originalname);
+    cb(null, `profile-${uniqueSuffix}${ext}`);
   },
 });
 
-const upload = multer({ storage });
+const fileFilter = (
+  _req: express.Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Not an image! Please upload only images.'));
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 const router = express.Router();
 
@@ -47,5 +74,7 @@ router.use('/admin', adminOnly);
 router.get('/admin/users', userController.getAllUsers);
 router.get('/admin/users/:userId', userController.getUserById);
 router.put('/admin/users/:userId', userController.updateUserById);
+
+router.get('/admin/dashboard-summary', userController.getDashboardSummary);
 
 export default router;

@@ -19,6 +19,8 @@ import emailVerificationRoutes from './routes/emailVerificationRoutes';
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
@@ -44,8 +46,6 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API routes
 app.use('/api/auth', authRoutes);

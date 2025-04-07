@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
+import { FiAlertCircle, FiLock } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { authApi } from '../../services/api';
 
@@ -12,83 +13,111 @@ const AdminRegister = () => {
     firstName: '',
     lastName: '',
     email: '',
-    phone: '',
+    phoneNumber: '',
     password: '',
     confirmPassword: '',
+    setupCode: '',
   });
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInitialSetup, setIsInitialSetup] = useState(false);
+
+  // Password validation
+  const [passwordFocus, setPasswordFocus] = useState(false);
+  const passwordHasUppercase = /[A-Z]/.test(formData.password);
+  const passwordHasNumber = /[0-9]/.test(formData.password);
+  const passwordHasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
+  const passwordHasLength = formData.password.length >= 8;
+  const passwordsMatch =
+    formData.password === formData.confirmPassword && formData.password !== '';
 
   useEffect(() => {
-    if (!user) {
-      navigate('/auth/login');
-    } else if (user.role !== 'admin') {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
+    const checkInitialSetup = async () => {
+      try {
+        const response = await authApi.checkAdminExists();
+        setIsInitialSetup(!response.adminExists);
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setIsInitialSetup(false);
+      }
+    };
 
-  // Form handlers
+    checkInitialSetup();
+  }, []);
+
+  // Check if non-admin is trying to access
+  useEffect(() => {
+    if (user && user.role !== 'admin' && !isInitialSetup) {
+      navigate('/admin/login');
+    }
+  }, [user, navigate, isInitialSetup]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
-
-    // Clear messages when user types
     setError(null);
-    setSuccess(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Don't allow multiple submissions
     if (isSubmitting) return;
 
     // Validate form
-    if (formData.password !== formData.confirmPassword) {
+    if (!passwordsMatch) {
       setError('Passwords do not match');
+      return;
+    }
+
+    // Validate password strength
+    if (
+      !passwordHasLength ||
+      !passwordHasUppercase ||
+      !passwordHasNumber ||
+      !passwordHasSpecial
+    ) {
+      setError('Password does not meet the security requirements');
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
-    setSuccess(null);
 
     try {
-      // Remove confirmPassword as it's not needed for API
-      const { confirmPassword, ...registerData } = formData;
-
-      // Add role=admin to the data
-      const userData = {
-        ...registerData,
-        role: 'admin',
-        phoneNumber: registerData.phone, // Ensure correct property name
+      const adminData = {
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phoneNumber: formData.phoneNumber,
+        setupCode: formData.setupCode,
       };
 
-      console.log('Creating admin with data:', userData);
+      const response = isInitialSetup
+        ? await authApi.initialAdminSetup(adminData)
+        : await authApi.createAdmin(adminData);
 
-      // Call custom admin registration endpoint
-      const response = await authApi.createAdmin(userData);
-
-      setSuccess(
-        `Admin account for ${response.user.email} created successfully!`
-      );
-
-      // Reset form
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        password: '',
-        confirmPassword: '',
-      });
+      if (response.success) {
+        setSuccess('Admin account created successfully!');
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phoneNumber: '',
+          password: '',
+          confirmPassword: '',
+          setupCode: '',
+        });
+        setTimeout(() => {
+          navigate('/admin/login');
+        }, 2000);
+      }
     } catch (error: any) {
       setError(
         error.message || 'Failed to create admin account. Please try again.'
@@ -98,28 +127,33 @@ const AdminRegister = () => {
     }
   };
 
-  const [passwordFocus, setPasswordFocus] = useState(false);
-  const passwordHasUppercase = /[A-Z]/.test(formData.password);
-  const passwordHasNumber = /[0-9]/.test(formData.password);
-  const passwordHasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
-  const passwordHasLength = formData.password.length >= 8;
-  const passwordsMatch =
-    formData.password === formData.confirmPassword && formData.password !== '';
-
-  if (!user || user.role !== 'admin') {
-    return null;
-  }
-
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-8 rounded-xl shadow-lg md:w-[450px]">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-8 rounded-xl shadow-lg max-w-2xl mx-auto">
       <div className="flex flex-col items-center space-y-2 mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Create Admin Account
+          {isInitialSetup
+            ? 'Setup First Admin Account'
+            : 'Create Admin Account'}
         </h1>
         <p className="text-md text-gray-500 dark:text-gray-400">
-          Register a new administrator for OpenSpace
+          {isInitialSetup
+            ? 'Create your first administrator account'
+            : 'Create a new administrator account'}
         </p>
       </div>
+
+      {isInitialSetup && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+          <div className="flex items-start">
+            <FiLock className="text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              This is a one-time setup for creating the first admin account.
+              After this, all admin accounts must be created by an existing
+              admin.
+            </p>
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
@@ -128,7 +162,10 @@ const AdminRegister = () => {
           <div
             className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative"
             role="alert">
-            <span className="block sm:inline">{error}</span>
+            <span className="flex items-center">
+              <FiAlertCircle className="mr-2" />
+              {error}
+            </span>
           </div>
         )}
 
@@ -155,7 +192,7 @@ const AdminRegister = () => {
               value={formData.firstName}
               onChange={handleChange}
               className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="Admin"
+              placeholder="John"
               disabled={isSubmitting}
               required
             />
@@ -174,7 +211,7 @@ const AdminRegister = () => {
               value={formData.lastName}
               onChange={handleChange}
               className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="User"
+              placeholder="Doe"
               disabled={isSubmitting}
               required
             />
@@ -195,7 +232,7 @@ const AdminRegister = () => {
             value={formData.email}
             onChange={handleChange}
             className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            placeholder="admin@openspace.com"
+            placeholder="admin@example.com"
             disabled={isSubmitting}
             required
           />
@@ -204,15 +241,15 @@ const AdminRegister = () => {
         {/* Phone */}
         <div className="flex flex-col space-y-2">
           <label
-            htmlFor="phone"
+            htmlFor="phoneNumber"
             className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Phone
           </label>
           <input
             type="tel"
-            name="phone"
-            id="phone"
-            value={formData.phone}
+            name="phoneNumber"
+            id="phoneNumber"
+            value={formData.phoneNumber}
             onChange={handleChange}
             className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             placeholder="+63 917 000 0000"
@@ -220,6 +257,32 @@ const AdminRegister = () => {
             required
           />
         </div>
+
+        {/* Setup Code - Only shown during initial setup */}
+        {isInitialSetup && (
+          <div className="flex flex-col space-y-2">
+            <label
+              htmlFor="setupCode"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Setup Code
+            </label>
+            <input
+              type="text"
+              name="setupCode"
+              id="setupCode"
+              value={formData.setupCode}
+              onChange={handleChange}
+              className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              placeholder="Enter the setup code from your .env file"
+              disabled={isSubmitting}
+              required
+            />
+            <p className="text-xs text-gray-500">
+              This is the ADMIN_SETUP_CODE value from your server's environment
+              variables
+            </p>
+          </div>
+        )}
 
         {/* Password */}
         <div className="flex flex-col space-y-2">
@@ -335,23 +398,23 @@ const AdminRegister = () => {
           )}
         </div>
 
-        {/* Admin Security Notice */}
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 p-3 rounded-lg text-xs text-yellow-700 dark:text-yellow-300">
-          <p className="font-medium mb-1">Security Notice:</p>
-          <p>
-            Admin accounts have full system access. Ensure this account is only
-            given to trusted personnel. All admin actions are logged for
-            security purposes.
-          </p>
-        </div>
-
         {/* Submit Button */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full p-3 rounded-lg bg-darkBlue text-light dark:bg-light dark:text-darkBlue hover:bg-blue-600 hover:text-white font-medium transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
-          {isSubmitting ? 'Creating Admin Account...' : 'Create Admin Account'}
+          className="w-full p-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+          {isSubmitting ? 'Creating Admin...' : 'Create Admin Account'}
         </button>
+
+        <div className="text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <Link
+              to="/admin/dashboard"
+              className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+              Back to admin dashboard
+            </Link>
+          </p>
+        </div>
       </form>
     </div>
   );
