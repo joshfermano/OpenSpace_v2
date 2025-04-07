@@ -1,0 +1,30 @@
+.receipt-container.printing {
+    background-color: white !important;
+    color: black !important;
+    width: 210mm;
+    padding: 10mm;
+}
+
+.printing * {
+    color: black !important;
+}
+
+.printing .bg-blue-50,
+.printing .bg-blue-900\/30 {
+    background-color: #f0f7ff !important;
+}
+
+.printing .dark\:text-white,
+.printing .dark\:text-gray-300,
+.printing .dark\:text-gray-400 {
+    color: #333 !important;
+}
+
+.printing .dark\:bg-gray-800 {
+    background-color: white !important;
+}
+
+.printing .dark\:border-gray-700,
+.printing .dark\:border-blue-800 {
+    border-color: #e5e7eb !important;
+}

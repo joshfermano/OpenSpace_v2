@@ -1,0 +1,251 @@
+.react-calendar {
+    width: 100%;
+    max-width: 100%;
+    background-color: #ffffff;
+    color: #222;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.5;
+    border: none !important;
+    padding: 16px;
+}
+
+/* Dark mode styles */
+.dark .react-calendar {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Navigation area */
+.react-calendar__navigation {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.react-calendar__navigation button {
+    background: none;
+    border: 0;
+    color: #1e293b;
+    font-size: 16px;
+    font-weight: 500;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.dark .react-calendar__navigation button {
+    color: #e2e8f0;
+}
+
+.react-calendar__navigation button:enabled:hover,
+.react-calendar__navigation button:enabled:focus {
+    background-color: #f1f5f9;
+}
+
+.dark .react-calendar__navigation button:enabled:hover,
+.dark .react-calendar__navigation button:enabled:focus {
+    background-color: #334155;
+}
+
+.react-calendar__navigation button[disabled] {
+    opacity: 0.5;
+}
+
+.react-calendar__navigation__label {
+    font-weight: 600;
+    font-size: 18px;
+    flex-grow: 1;
+}
+
+/* Month view */
+.react-calendar__month-view__weekdays {
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.react-calendar__month-view__weekdays__weekday {
+    padding: 8px 0;
+    text-align: center;
+    color: #64748b;
+}
+
+.dark .react-calendar__month-view__weekdays__weekday {
+    color: #94a3b8;
+}
+
+.react-calendar__month-view__weekdays abbr {
+    text-decoration: none;
+    cursor: default;
+}
+
+/* Days */
+.react-calendar__tile {
+    padding: 10px 8px;
+    background: none;
+    text-align: center;
+    line-height: 20px;
+    font-size: 14px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    position: relative;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.react-calendar__tile--now {
+    background-color: rgba(14, 165, 233, 0.1);
+    font-weight: 600;
+}
+
+.dark .react-calendar__tile--now {
+    background-color: rgba(56, 189, 248, 0.2);
+}
+
+.react-calendar__tile--active,
+.react-calendar__tile--active:enabled:hover,
+.react-calendar__tile--active:enabled:focus {
+    background-color: #0284c7;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.dark .react-calendar__tile--active,
+.dark .react-calendar__tile--active:enabled:hover,
+.dark .react-calendar__tile--active:enabled:focus {
+    background-color: #0ea5e9;
+}
+
+.react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+    background-color: #f1f5f9;
+}
+
+.dark .react-calendar__tile:enabled:hover,
+.dark .react-calendar__tile:enabled:focus {
+    background-color: #334155;
+}
+
+/* Improved unavailable dates styling */
+.react-calendar__tile--disabled {
+    background-color: #f8f8f8 !important;
+    color: #f87171 !important;
+    /* Slightly red text */
+    opacity: 0.7;
+    cursor: not-allowed !important;
+    position: relative;
+}
+
+.dark .react-calendar__tile--disabled {
+    background-color: #1e293b !important;
+    color: #ef4444 !important;
+    /* Brighter red for dark mode */
+    opacity: 0.6;
+}
+
+/* Add a subtle striped pattern to unavailable dates */
+.react-calendar__tile--disabled:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(-45deg,
+            rgba(239, 68, 68, 0.08),
+            rgba(239, 68, 68, 0.08) 3px,
+            transparent 3px,
+            transparent 6px);
+    border-radius: 8px;
+    z-index: -1;
+}
+
+.dark .react-calendar__tile--disabled:before {
+    background: repeating-linear-gradient(-45deg,
+            rgba(239, 68, 68, 0.15),
+            rgba(239, 68, 68, 0.15) 3px,
+            transparent 3px,
+            transparent 6px);
+}
+
+/* Remove the old 'after' styling since we're using a better approach */
+.react-calendar__tile--disabled:after {
+    display: none;
+}
+
+/* Range selection */
+.react-calendar__tile--rangeStart,
+.react-calendar__tile--rangeEnd {
+    background-color: #0284c7 !important;
+    color: white !important;
+    z-index: 1;
+    font-weight: 600;
+}
+
+.dark .react-calendar__tile--rangeStart,
+.dark .react-calendar__tile--rangeEnd {
+    background-color: #0ea5e9 !important;
+}
+
+.react-calendar__tile--rangeBetween {
+    background-color: rgba(2, 132, 199, 0.2) !important;
+    color: #0f172a !important;
+}
+
+.dark .react-calendar__tile--rangeBetween {
+    background-color: rgba(14, 165, 233, 0.2) !important;
+    color: #f1f5f9 !important;
+}
+
+/* Month and year pickers */
+.react-calendar__year-view__months__month,
+.react-calendar__decade-view__years__year,
+.react-calendar__century-view__decades__decade {
+    padding: 12px 8px !important;
+    border-radius: 8px;
+}
+
+/* Hover effect */
+.react-calendar__tile--hasActive,
+.react-calendar__tile--hasActive:enabled:hover,
+.react-calendar__tile--hasActive:enabled:focus {
+    background-color: #38bdf8;
+}
+
+/* Calendar container */
+.calendar-container {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.dark .calendar-container {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Improved tooltip for unavailable dates */
+.react-calendar__tile--disabled:hover::after {
+    content: 'Unavailable';
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(15, 23, 42, 0.9);
+    color: #fff;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    z-index: 10;
+    white-space: nowrap;
+}
+
+.dark .react-calendar__tile--disabled:hover::after {
+    background-color: rgba(226, 232, 240, 0.9);
+    color: #0f172a;
+}

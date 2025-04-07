@@ -1,0 +1,182 @@
+import mongoose, { Document, Schema } from 'mongoose';
+import bcrypt from 'bcrypt';
+
+export interface IUser extends Document {
+  _id: mongoose.Types.ObjectId;
+  email: string;
+  password: string;
+  active: boolean;
+  resetPasswordToken?: string;
+  resetPasswordExpire?: Date;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  profileImage?: string;
+  role: 'user' | 'host' | 'admin';
+  verificationLevel: 'basic' | 'verified' | 'admin';
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
+  isHostVerified: boolean;
+  identificationDocument?: {
+    idType: string;
+    idNumber: string;
+    idImage: string;
+    uploadDate: Date;
+    verificationStatus: 'pending' | 'approved' | 'rejected';
+    verificationDate?: Date;
+    rejectionReason?: string;
+  };
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  hostInfo?: {
+    bio: string;
+    languagesSpoken: string[];
+    responseRate?: number;
+    responseTime?: number;
+    acceptanceRate?: number;
+    hostSince: Date;
+  };
+  savedRooms: mongoose.Types.ObjectId[];
+  createdAt: Date;
+  updatedAt: Date;
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+const userSchema = new Schema<IUser>(
+  {
+    email: {
+      type: String,
+      required: [true, 'Email is required'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [8, 'Password must be at least 8 characters long'],
+    },
+    active: {
+      type: Boolean,
+      default: true,
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false, // Don't return this field in queries by default
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false, // Don't return this field in queries by default
+    },
+    firstName: {
+      type: String,
+      required: [true, 'First name is required'],
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: [true, 'Last name is required'],
+      trim: true,
+    },
+    phoneNumber: {
+      type: String,
+      required: [true, 'Phone number is required'],
+      trim: true,
+    },
+    profileImage: {
+      type: String,
+      default: '',
+    },
+    role: {
+      type: String,
+      enum: ['user', 'host', 'admin'],
+      default: 'user',
+    },
+    verificationLevel: {
+      type: String,
+      enum: ['basic', 'verified', 'admin'],
+      default: 'basic',
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    isPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+    isHostVerified: {
+      type: Boolean,
+      default: false,
+    },
+    identificationDocument: {
+      idType: { type: String },
+      idNumber: { type: String },
+      idImage: { type: String },
+      uploadDate: { type: Date },
+      verificationStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending',
+      },
+      verificationDate: { type: Date },
+      rejectionReason: { type: String },
+    },
+    address: {
+      street: { type: String },
+      city: { type: String },
+      state: { type: String },
+      zipCode: { type: String },
+      country: { type: String },
+    },
+    hostInfo: {
+      bio: { type: String },
+      languagesSpoken: [{ type: String }],
+      responseRate: { type: Number },
+      responseTime: { type: Number },
+      acceptanceRate: { type: Number },
+      hostSince: { type: Date },
+    },
+    savedRooms: [{ type: Schema.Types.ObjectId, ref: 'Room' }],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw new Error('Password comparison failed');
+  }
+};
+
+// Pre-save hook to hash password
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+// Method to compare password
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+export default mongoose.model<IUser>('User', userSchema);
