@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs/promises';
 
 // Import routes
+import adminRoutes from './routes/adminRoutes';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import roomRoutes from './routes/roomRoutes';
@@ -19,6 +20,8 @@ import emailVerificationRoutes from './routes/emailVerificationRoutes';
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// Correctly serve static files from both src/uploads and public/uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // CORS configuration
@@ -48,6 +51,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // API routes
+app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);

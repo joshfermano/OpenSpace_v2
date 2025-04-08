@@ -142,16 +142,18 @@ const AdminDashboard = () => {
             id: user._id,
             name: `${user.firstName} ${user.lastName}`,
             email: user.email,
-            joinDate: user.createdAt,
             role: user.role,
-            status: user.active ? 'active' : 'banned',
-            rooms: user.rooms?.length || 0,
-            idType: user.identificationDocument?.idType || null,
+            status: user.active === false ? 'banned' : 'active',
+            joinDate: user.createdAt,
             verificationStatus:
               user.identificationDocument?.verificationStatus ||
               'not_submitted',
+            idType: user.identificationDocument?.idType || '',
+            documentUrl: user.identificationDocument?.idImage || '',
             imageUrl: user.profileImage,
+            rooms: user.rooms?.length || 0,
           }));
+
           setUsers(formattedUsers);
           setFilteredUsers(formattedUsers);
           console.log('Users loaded:', formattedUsers.length);
@@ -163,7 +165,7 @@ const AdminDashboard = () => {
           await adminApi.getPendingIdVerifications();
         if (verificationsResponse.success) {
           const formattedVerifications = verificationsResponse.data
-            .filter((verification: any) => verification.role !== 'admin') // Filter out admin users
+            .filter((verification: any) => verification.role !== 'admin')
             .map((verification: any) => ({
               id: verification._id,
               userId: verification._id,
@@ -179,6 +181,7 @@ const AdminDashboard = () => {
               documentUrl: verification.identificationDocument?.idImage || '',
               imageUrl: verification.profileImage,
             }));
+
           setVerifications(formattedVerifications);
           setFilteredVerifications(formattedVerifications);
           console.log('Verifications loaded:', formattedVerifications.length);
@@ -424,10 +427,10 @@ const AdminDashboard = () => {
         <div className="flex flex-col gap-6">
           {/* Header */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-light">
               Admin Dashboard
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">
+            <p className="text-gray-600 dark:text-light/80 mt-1">
               Manage spaces, users, and verification requests
             </p>
           </div>
@@ -441,7 +444,7 @@ const AdminDashboard = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-6 py-3 text-sm font-medium transition-colors
+                className={`flex items-center px-6 py-3 text-xs md:text-sm font-medium transition-colors
                   ${
                     activeTab === tab.id
                       ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500'
@@ -487,9 +490,10 @@ const AdminDashboard = () => {
               <VerificationRequests
                 requests={filteredVerifications}
                 statusConfig={verificationStatusConfig}
-                onViewDocument={(url, userName) =>
-                  setPreviewData({ type: 'document', url, userName })
-                }
+                onViewDocument={(url, userName) => {
+                  console.log('Viewing verification document with URL:', url);
+                  setPreviewData({ type: 'document', url, userName });
+                }}
                 onApproveRequest={(_, userId) =>
                   setConfirmAction({
                     type: 'approveVerification',
@@ -510,9 +514,10 @@ const AdminDashboard = () => {
                 users={filteredUsers}
                 statusConfig={userStatusConfig}
                 verificationConfig={verificationStatusConfig}
-                onViewDocument={(url, userName) =>
-                  setPreviewData({ type: 'document', url, userName })
-                }
+                onViewDocument={(url, userName) => {
+                  console.log('Viewing document with URL:', url);
+                  setPreviewData({ type: 'document', url, userName });
+                }}
                 onBanUser={(userId, userName) =>
                   setConfirmAction({ type: 'banUser', id: userId, userName })
                 }
@@ -556,45 +561,45 @@ const AdminDashboard = () => {
               ))}
             </div>
             <div className="space-y-2">
-              <p className="text-gray-600 dark:text-gray-400">
-                <span className="font-medium text-gray-900 dark:text-white">
+              <p className="text-gray-600 dark:text-light/80">
+                <span className="font-medium text-gray-900 dark:text-light">
                   Location:
                 </span>{' '}
                 {previewData.data.location}
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
-                <span className="font-medium text-gray-900 dark:text-white">
+              <p className="text-gray-600 dark:text-light/80">
+                <span className="font-medium text-gray-900 dark:text-light">
                   Category:
                 </span>{' '}
                 {previewData.data.category}
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
-                <span className="font-medium text-gray-900 dark:text-white">
+              <p className="text-gray-600 dark:text-light/80">
+                <span className="font-medium text-gray-900 dark:text-light">
                   Price:
                 </span>{' '}
                 ₱{Number(previewData.data.price).toLocaleString()}
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
-                <span className="font-medium text-gray-900 dark:text-white">
+              <p className="text-gray-600 dark:text-light/80">
+                <span className="font-medium text-gray-900 dark:text-light">
                   Capacity:
                 </span>{' '}
                 {previewData.data.capacity} people
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
-                <span className="font-medium text-gray-900 dark:text-white">
+              <p className="text-gray-600 dark:text-light/80">
+                <span className="font-medium text-gray-900 dark:text-light">
                   Description:
                 </span>{' '}
                 {previewData.data.description}
               </p>
               <div>
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="font-medium text-gray-900 dark:text-light">
                   Amenities:
                 </span>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {previewData.data.amenities.map((amenity: string) => (
                     <span
                       key={amenity}
-                      className="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
+                      className="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-light/80 rounded-full">
                       {amenity}
                     </span>
                   ))}
@@ -604,16 +609,42 @@ const AdminDashboard = () => {
           </div>
         ) : (
           previewData?.type === 'document' && (
-            <div className="flex justify-center">
-              <img
-                src={previewData.url}
-                alt="ID Document"
-                className="max-w-full h-auto rounded-lg"
-                onError={(e) => {
-                  e.currentTarget.src =
-                    '/assets/images/document-placeholder.png';
-                }}
-              />
+            <div className="flex flex-col items-center">
+              <p className="mb-4 text-gray-700 dark:text-light">
+                Document provided by {previewData.userName}
+              </p>
+              {previewData.url ? (
+                <>
+                  <img
+                    src={previewData.url}
+                    alt="ID Document"
+                    className="max-w-full h-auto rounded-lg"
+                    onLoad={() =>
+                      console.log('Document image loaded successfully')
+                    }
+                    onError={(e) => {
+                      console.error(
+                        'Error loading document image:',
+                        previewData.url
+                      );
+                      e.currentTarget.src =
+                        '/assets/images/document-placeholder.png';
+                    }}
+                  />
+                  {/* Remove or truncate the URL display to avoid long text */}
+                  {!previewData.url.startsWith('data:') && (
+                    <p className="mt-4 text-sm text-gray-500 dark:text-light/70 truncate max-w-md">
+                      Source: {previewData.url.split('/').pop() || 'Document'}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 dark:text-light/70">
+                    Document image not available or could not be loaded.
+                  </p>
+                </div>
+              )}
             </div>
           )
         )}
@@ -642,15 +673,15 @@ const AdminDashboard = () => {
           <div className="flex justify-end space-x-3">
             <button
               onClick={() => setConfirmAction(null)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 
-                rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-light 
+          rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
               Cancel
             </button>
             <button
               onClick={() =>
                 confirmAction && handleConfirmAction(confirmAction)
               }
-              className={`px-4 py-2 text-white rounded-lg transition-colors ${
+              className={`px-4 py-2 text-white dark:text-light rounded-lg transition-colors ${
                 [
                   'rejectRoom',
                   'rejectVerification',

@@ -41,7 +41,6 @@ const Login = () => {
       const loggedInUser = await login(formData.email, formData.password);
 
       if (loggedInUser) {
-        // Redirect based on user role
         if (loggedInUser.role === 'admin') {
           navigate('/admin/dashboard');
         } else if (loggedInUser.role === 'host') {

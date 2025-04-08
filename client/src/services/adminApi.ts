@@ -3,7 +3,7 @@ import { API_URL, fetchWithAuth } from './core';
 export const adminApi = {
   createAdmin: async (userData: Record<string, any>) => {
     try {
-      const response = await fetchWithAuth('/api/auth/admin/create', {
+      const response = await fetchWithAuth('/api/admin/users/create-admin', {
         method: 'POST',
         body: JSON.stringify(userData),
       });
@@ -23,7 +23,7 @@ export const adminApi = {
 
   checkAdminExists: async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/check-admin-exists`);
+      const response = await fetch(`${API_URL}/api/admin/check-admin-exists`);
       const data = await response.json();
       return data;
     } catch (error) {
@@ -38,7 +38,7 @@ export const adminApi = {
 
   initialAdminSetup: async (userData: Record<string, any>) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/initial-admin-setup`, {
+      const response = await fetch(`${API_URL}/api/admin/initial-admin-setup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -63,9 +63,7 @@ export const adminApi = {
     try {
       console.log('Fetching admin dashboard summary...');
 
-      const response = await fetchWithAuth(
-        '/api/users/admin/dashboard-summary'
-      );
+      const response = await fetchWithAuth('/api/admin/dashboard-summary');
 
       if (!response.ok) {
         console.error(
@@ -113,7 +111,7 @@ export const adminApi = {
       });
 
       const response = await fetchWithAuth(
-        `/api/users/admin/users?${queryParams.toString()}`
+        `/api/admin/users?${queryParams.toString()}`
       );
       return await response.json();
     } catch (error) {
@@ -126,26 +124,40 @@ export const adminApi = {
     }
   },
 
-  updateUser: async (userId: string, userData: any) => {
+  getUserById: async (userId: string) => {
     try {
-      const response = await fetchWithAuth(`/api/users/admin/users/${userId}`, {
+      const response = await fetchWithAuth(`/api/admin/users/${userId}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching user by ID:', error);
+      return {
+        success: false,
+        message: 'Network error while fetching user details',
+      };
+    }
+  },
+
+  updateUserById: async (userId: string, userData: Record<string, any>) => {
+    try {
+      const response = await fetchWithAuth(`/api/admin/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(userData),
       });
-      return await response.json();
+      const data = await response.json();
+      return data;
     } catch (error) {
       console.error('Error updating user:', error);
       return {
         success: false,
-        message: 'Failed to update user',
-        error: error instanceof Error ? error.message : String(error),
+        message: 'Network error while updating user',
       };
     }
   },
 
   deleteUser: async (userId: string) => {
     try {
-      const response = await fetchWithAuth(`/api/auth/admin/user/${userId}`, {
+      const response = await fetchWithAuth(`/api/admin/users/${userId}`, {
         method: 'DELETE',
       });
       return await response.json();
@@ -159,84 +171,44 @@ export const adminApi = {
     }
   },
 
-  getPendingVerifications: async () => {
+  // User banning/unbanning
+  banUser: async (userId: string, reason?: string) => {
     try {
-      const response = await fetchWithAuth('/api/auth/admin/id-verifications');
-      return await response.json();
+      const response = await fetchWithAuth(`/api/admin/users/${userId}/ban`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason }),
+      });
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error('Error fetching verification requests:', error);
+      console.error('Error banning user:', error);
       return {
         success: false,
-        message: 'Failed to fetch verification requests',
-        error: error instanceof Error ? error.message : String(error),
+        message: 'Network error while banning user',
       };
     }
   },
 
-  verifyUserIdentity: async (userId: string, isApproved: boolean) => {
+  unbanUser: async (userId: string) => {
     try {
-      const response = await fetchWithAuth(
-        `/api/auth/admin/verify-id/${userId}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ isApproved }),
-        }
-      );
-      return await response.json();
+      const response = await fetchWithAuth(`/api/admin/users/${userId}/unban`, {
+        method: 'PATCH',
+      });
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error('Error processing verification request:', error);
+      console.error('Error unbanning user:', error);
       return {
         success: false,
-        message: 'Failed to process verification request',
-        error: error instanceof Error ? error.message : String(error),
+        message: 'Network error while unbanning user',
       };
     }
   },
 
-  // Room approvals
-  getPendingRoomApprovals: async () => {
-    try {
-      const response = await fetchWithAuth(
-        '/api/rooms/admin/pending-approvals'
-      );
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching room approvals:', error);
-      return {
-        success: false,
-        message: 'Failed to fetch room approvals',
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  },
-
-  approveRoom: async (
-    roomId: string,
-    approved: boolean,
-    rejectionReason?: string
-  ) => {
-    try {
-      const response = await fetchWithAuth(
-        `/api/rooms/admin/approve/${roomId}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ approved, rejectionReason }),
-        }
-      );
-      return await response.json();
-    } catch (error) {
-      console.error('Error approving/rejecting room:', error);
-      return {
-        success: false,
-        message: 'Failed to process room approval',
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  },
-
+  // ID verification management
   getPendingIdVerifications: async () => {
     try {
-      const response = await fetchWithAuth('/api/auth/admin/id-verifications');
+      const response = await fetchWithAuth('/api/admin/id-verifications');
       const data = await response.json();
       return data;
     } catch (error) {
@@ -256,9 +228,8 @@ export const adminApi = {
     }
   ) => {
     try {
-      // Fix the endpoint path to match the server route
       const response = await fetchWithAuth(
-        `/api/auth/admin/id-verification/${userId}`, // This should match your backend route
+        `/api/admin/id-verification/${userId}`,
         {
           method: 'PATCH',
           body: JSON.stringify(verificationData),
@@ -275,82 +246,104 @@ export const adminApi = {
     }
   },
 
-  banUser: async (userId: string, reason?: string) => {
+  // Room approvals
+  getPendingRoomApprovals: async () => {
     try {
-      // Fix the endpoint and request structure
-      const response = await fetchWithAuth(`/api/auth/admin/ban/${userId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ reason }),
+      const response = await fetchWithAuth('/api/admin/rooms/pending');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching room approvals:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch room approvals',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+
+  approveRoom: async (
+    roomId: string,
+    approved: boolean,
+    rejectionReason?: string
+  ) => {
+    try {
+      const response = await fetchWithAuth(
+        `/api/admin/rooms/${roomId}/approve`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ approved, rejectionReason }),
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Error approving/rejecting room:', error);
+      return {
+        success: false,
+        message: 'Failed to process room approval',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+
+  // Booking management
+  getAllBookings: async (page = 1, limit = 10, status?: string) => {
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        ...(status ? { status } : {}),
       });
-      const data = await response.json();
-      return data;
+
+      const response = await fetchWithAuth(
+        `/api/admin/bookings?${queryParams.toString()}`
+      );
+      return await response.json();
     } catch (error) {
-      console.error('Error banning user:', error);
+      console.error('Error fetching bookings:', error);
       return {
         success: false,
-        message: 'Network error while banning user',
+        message: 'Failed to fetch bookings',
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   },
 
-  unbanUser: async (userId: string) => {
+  updateBookingStatus: async (
+    bookingId: string,
+    status: string,
+    reason?: string
+  ) => {
     try {
-      // Fix the endpoint
-      const response = await fetchWithAuth(`/api/auth/admin/unban/${userId}`, {
-        method: 'PATCH',
+      const response = await fetchWithAuth(
+        `/api/admin/bookings/${bookingId}/status`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status, reason }),
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      return {
+        success: false,
+        message: 'Failed to update booking status',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+
+  deleteBooking: async (bookingId: string) => {
+    try {
+      const response = await fetchWithAuth(`/api/admin/bookings/${bookingId}`, {
+        method: 'DELETE',
       });
-      const data = await response.json();
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error('Error unbanning user:', error);
+      console.error('Error deleting booking:', error);
       return {
         success: false,
-        message: 'Network error while unbanning user',
-      };
-    }
-  },
-
-  getAllUsers: async () => {
-    try {
-      const response = await fetchWithAuth('/api/users/admin/users');
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching all users:', error);
-      return {
-        success: false,
-        message: 'Network error while fetching users',
-      };
-    }
-  },
-
-  getUserById: async (userId: string) => {
-    try {
-      const response = await fetchWithAuth(`/api/users/admin/users/${userId}`);
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching user by ID:', error);
-      return {
-        success: false,
-        message: 'Network error while fetching user details',
-      };
-    }
-  },
-
-  updateUserById: async (userId: string, userData: Record<string, any>) => {
-    try {
-      const response = await fetchWithAuth(`/api/users/admin/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(userData),
-      });
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error updating user:', error);
-      return {
-        success: false,
-        message: 'Network error while updating user',
+        message: 'Failed to delete booking',
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   },

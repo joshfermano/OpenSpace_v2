@@ -1,10 +1,31 @@
 import { Request, Response } from 'express';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import User, { IUser } from '../models/User';
 import OtpVerification from '../models/OtpVerification';
 import {
   sendOtpVerificationEmail,
   sendTestEmail,
 } from '../services/emailService';
+
+const generateToken = (user: IUser): string => {
+  const secret = process.env.JWT_SECRET;
+
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined in environment variables');
+  }
+
+  return jwt.sign(
+    {
+      userId: user._id,
+      email: user.email,
+      role: user.role,
+    },
+    secret,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    } as SignOptions
+  );
+};
 
 // Generate a random 6-digit OTP
 const generateOTP = (): string => {
@@ -108,17 +129,12 @@ export const resendEmailVerification = async (
   return sendEmailVerificationOTP(req, res);
 };
 
-// Verify email with OTP
 export const verifyEmailWithOTP = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { otp } = req.body;
-
-    // Get authenticated user
-    const user = verifyUserAuth(req, res);
-    if (!user) return;
 
     if (!otp) {
       res.status(400).json({
@@ -128,64 +144,73 @@ export const verifyEmailWithOTP = async (
       return;
     }
 
-    // Check if email is already verified
-    if (user.isEmailVerified) {
-      res.status(400).json({
-        success: false,
-        message: 'Email is already verified',
-      });
-      return;
-    }
-
-    // Find the OTP verification record
+    // Find the OTP record
     const otpRecord = await OtpVerification.findOne({
-      user: user._id,
+      otp,
       type: 'email',
     });
 
     if (!otpRecord) {
       res.status(400).json({
         success: false,
-        message: 'OTP not found. Please request a new OTP',
+        message: 'Invalid OTP',
       });
       return;
     }
 
     // Check if OTP is expired
     if (otpRecord.expiresAt < new Date()) {
+      await OtpVerification.deleteOne({ _id: otpRecord._id });
       res.status(400).json({
         success: false,
-        message: 'OTP has expired. Please request a new OTP',
+        message: 'OTP has expired, please request a new one',
       });
       return;
     }
 
-    // Check if OTP matches
-    if (otpRecord.otp !== otp) {
-      res.status(400).json({
+    // Find the user associated with this OTP
+    const user = await User.findById(otpRecord.user);
+
+    if (!user) {
+      res.status(404).json({
         success: false,
-        message: 'Invalid OTP. Please try again',
+        message: 'User not found',
       });
       return;
     }
 
-    // Mark user's email as verified
-    await User.findByIdAndUpdate(user._id, {
-      isEmailVerified: true,
-    });
+    user.isEmailVerified = true;
+    await user.save();
 
-    // Delete the OTP record
-    await OtpVerification.findByIdAndDelete(otpRecord._id);
+    // Delete used OTP
+    await OtpVerification.deleteOne({ _id: otpRecord._id });
+
+    // Generate new token using our local function instead of importing
+    const token = generateToken(user);
+
+    // Set the token in a cookie
+    const cookieOptions = {
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: (process.env.NODE_ENV === 'production' ? 'strict' : 'lax') as
+        | 'strict'
+        | 'lax'
+        | 'none',
+      path: '/',
+    };
+
+    res.cookie('token', token, cookieOptions);
 
     res.status(200).json({
       success: true,
       message: 'Email verified successfully',
     });
   } catch (error: any) {
-    console.error('Verify email with OTP error:', error);
+    console.error('Error verifying email:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to verify email',
+      message: 'Error verifying email',
       error: error.message,
     });
   }

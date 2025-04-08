@@ -13,15 +13,6 @@ interface CustomCookieOptions extends CookieOptions {
   expires: Date;
 }
 
-interface SafeUserResponse extends Omit<IUser, 'password'> {
-  password?: undefined;
-}
-
-interface IUserWithBan extends IUser {
-  active: boolean;
-  banReason?: string;
-}
-
 function ensureAuthenticated(req: Request, res: Response): IUser | null {
   if (!req.user) {
     res.status(401).json({
@@ -31,21 +22,6 @@ function ensureAuthenticated(req: Request, res: Response): IUser | null {
     return null;
   }
   return req.user as IUser;
-}
-
-function ensureAdmin(req: Request, res: Response): IUser | null {
-  const user = ensureAuthenticated(req, res);
-  if (!user) return null;
-
-  if (user.role !== 'admin') {
-    res.status(403).json({
-      success: false,
-      message: 'Not authorized, admin access required',
-    });
-    return null;
-  }
-
-  return user;
 }
 
 const generateToken = (user: IUser): string => {
@@ -250,68 +226,6 @@ export const getCurrentUser = async (
     res.status(500).json({
       success: false,
       message: 'Error fetching user data',
-      error: error.message,
-    });
-  }
-};
-
-// Create admin user (accessible only by existing admins)
-export const createAdmin = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    // First ensure the requester is authenticated and is an admin
-    const requestingUser = ensureAdmin(req, res);
-
-    if (!requestingUser) {
-      res.status(401).json({
-        success: false,
-        message: 'Not authenticated',
-      });
-      return;
-    }
-
-    const { email, password, firstName, lastName, phoneNumber, profileImage } =
-      req.body;
-
-    // Check if admin already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      res.status(400).json({
-        success: false,
-        message: 'User already exists with this email',
-      });
-      return;
-    }
-
-    // Create new admin user
-    const user = await User.create({
-      email,
-      password,
-      firstName,
-      lastName,
-      phoneNumber,
-      profileImage: profileImage || '',
-      role: 'admin',
-      verificationLevel: 'admin',
-      isEmailVerified: true,
-      isPhoneVerified: true,
-    });
-
-    // Change delete operation
-    const userResponse = user.toObject() as SafeUserResponse;
-    userResponse.password = undefined;
-
-    res.status(201).json({
-      success: true,
-      message: 'Admin user created successfully',
-      user: userResponse,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating admin user',
       error: error.message,
     });
   }
@@ -701,7 +615,6 @@ export const uploadIdVerification = async (
       return;
     }
 
-    // Update user's ID verification document
     userDoc.identificationDocument = {
       idType,
       idNumber,
@@ -721,320 +634,6 @@ export const uploadIdVerification = async (
     res.status(500).json({
       success: false,
       message: 'Error uploading ID verification',
-      error: error.message,
-    });
-  }
-};
-
-export const verifyUserIdDocument = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const admin = ensureAdmin(req, res);
-    if (!admin) return;
-
-    const { userId, isApproved, rejectionReason } = req.body;
-
-    if (!userId) {
-      res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-      return;
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
-
-    if (!user.identificationDocument) {
-      res.status(400).json({
-        success: false,
-        message: 'User has not uploaded an ID document',
-      });
-      return;
-    }
-
-    if (isApproved) {
-      // Approve the ID verification
-      user.identificationDocument.verificationStatus = 'approved';
-      user.identificationDocument.verificationDate = new Date();
-
-      // If email and phone are also verified, upgrade verification level
-      if (user.isEmailVerified && user.isPhoneVerified) {
-        user.verificationLevel = 'verified';
-      }
-    } else {
-      // Reject the ID verification
-      user.identificationDocument.verificationStatus = 'rejected';
-      user.identificationDocument.verificationDate = new Date();
-      user.identificationDocument.rejectionReason =
-        rejectionReason || 'Document verification failed';
-    }
-
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: `User ID document ${
-        isApproved ? 'approved' : 'rejected'
-      } successfully`,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying user ID document',
-      error: error.message,
-    });
-  }
-};
-
-export const checkAdminExists = async (
-  _req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const adminCount = await User.countDocuments({ role: 'admin' });
-
-    res.status(200).json({
-      success: true,
-      adminExists: adminCount > 0,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error checking admin existence',
-      error: error.message,
-    });
-  }
-};
-
-export const initialAdminSetup = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { email, password, firstName, lastName, phoneNumber, setupCode } =
-      req.body;
-
-    const validSetupCode = process.env.ADMIN_SETUP_CODE;
-    if (!validSetupCode || setupCode !== validSetupCode) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid setup code',
-      });
-      return;
-    }
-
-    const adminCount = await User.countDocuments({ role: 'admin' });
-    if (adminCount > 0) {
-      res.status(400).json({
-        success: false,
-        message:
-          'Admin account already exists. This setup can only be used once.',
-      });
-      return;
-    }
-
-    const user = await User.create({
-      email,
-      password,
-      firstName,
-      lastName,
-      phoneNumber: phoneNumber || '',
-      profileImage: '',
-      role: 'admin',
-      verificationLevel: 'admin',
-      isEmailVerified: true,
-      isPhoneVerified: true,
-    });
-
-    const userResponse = user.toObject();
-    userResponse.password = undefined;
-
-    res.status(201).json({
-      success: true,
-      message: 'Initial admin user created successfully',
-      user: userResponse,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating initial admin user',
-      error: error.message,
-    });
-  }
-};
-
-export const getPendingIdVerifications = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const admin = ensureAdmin(req, res);
-    if (!admin) return;
-
-    const users = await User.find({
-      'identificationDocument.verificationStatus': 'pending',
-    }).select('_id firstName lastName email identificationDocument');
-
-    res.status(200).json({
-      success: true,
-      count: users.length,
-      data: users,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error getting pending ID verifications',
-      error: error.message,
-    });
-  }
-};
-
-export const banUser = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const admin = ensureAdmin(req, res);
-    if (!admin) return;
-
-    const { userId, reason } = req.body;
-
-    if (!userId) {
-      res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-      return;
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
-
-    if (user.role === 'admin') {
-      res.status(400).json({
-        success: false,
-        message: 'Cannot ban an admin user',
-      });
-      return;
-    }
-
-    const userWithBan = user as unknown as IUserWithBan;
-    userWithBan.active = false;
-    userWithBan.banReason = reason || 'Banned by admin';
-    await userWithBan.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'User banned successfully',
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error banning user',
-      error: error.message,
-    });
-  }
-};
-
-export const unbanUser = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const admin = ensureAdmin(req, res);
-    if (!admin) return;
-
-    const { userId } = req.body;
-
-    if (!userId) {
-      res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-      return;
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
-
-    const userWithBan = user as unknown as IUserWithBan;
-    userWithBan.active = true;
-    userWithBan.banReason = undefined;
-    await userWithBan.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'User unbanned successfully',
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error unbanning user',
-      error: error.message,
-    });
-  }
-};
-
-export const deleteUser = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const admin = ensureAdmin(req, res);
-    if (!admin) return;
-
-    const { userId } = req.params;
-
-    if (!userId) {
-      res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-      return;
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
-
-    if (user.role === 'admin') {
-      res.status(400).json({
-        success: false,
-        message: 'Cannot delete an admin user',
-      });
-      return;
-    }
-
-    await User.findByIdAndDelete(userId);
-
-    res.status(200).json({
-      success: true,
-      message: 'User deleted successfully',
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting user',
       error: error.message,
     });
   }
@@ -1122,111 +721,40 @@ export const requestPasswordReset = async (
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
 
-    // Hash the token before saving to database
+    // Hash token before saving to database
     const hashedToken = crypto
       .createHash('sha256')
       .update(resetToken)
       .digest('hex');
 
-    // Set token expiry (1 hour)
-    const tokenExpiry = new Date();
-    tokenExpiry.setHours(tokenExpiry.getHours() + 1);
-
-    // Save to user document
+    // Set token and expiry
     user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpire = tokenExpiry;
+    user.resetPasswordExpire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     await user.save();
 
     try {
-      // Send password reset email with token
-      await sendPasswordResetEmail(email, resetToken);
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+      await sendPasswordResetEmail(user.email, resetUrl);
 
       res.status(200).json({
         success: true,
-        message:
-          'If your email is registered, you will receive a password reset link',
+        message: 'Password reset email sent',
       });
     } catch (error) {
-      // If email sending fails, clear the reset token
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
       await user.save();
 
-      console.error('Error sending password reset email:', error);
-
-      // Don't expose error details to client
       res.status(500).json({
         success: false,
-        message: 'There was a problem processing your request',
+        message: 'Email could not be sent',
       });
     }
   } catch (error: any) {
-    console.error('Password reset request error:', error);
-
     res.status(500).json({
       success: false,
-      message: 'Error processing request',
-    });
-  }
-};
-
-// Reset password with token
-export const resetPassword = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { token, password } = req.body;
-
-    if (!token || !password) {
-      res.status(400).json({
-        success: false,
-        message: 'Token and new password are required',
-      });
-      return;
-    }
-
-    // Validate password strength
-    if (password.length < 8) {
-      res.status(400).json({
-        success: false,
-        message: 'Password must be at least 8 characters long',
-      });
-      return;
-    }
-
-    // Hash the token to compare with stored hash
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-    // Find user with the token and valid expiry
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: new Date() },
-    });
-
-    if (!user) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid or expired reset token',
-      });
-      return;
-    }
-
-    user.password = password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Password has been reset successfully',
-    });
-  } catch (error: any) {
-    console.error('Password reset error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Error resetting password',
+      message: 'Error requesting password reset',
+      error: error.message,
     });
   }
 };
@@ -1238,21 +766,13 @@ export const validateResetToken = async (
   try {
     const { token } = req.params;
 
-    if (!token) {
-      res.status(400).json({
-        success: false,
-        message: 'Token is required',
-      });
-      return;
-    }
-
-    // Hash the token to compare with stored hash
+    // Hash the token from the URL
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Find user with the token and valid expiry
+    // Find user with matching token and valid expiry
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: new Date() },
+      resetPasswordExpire: { $gt: Date.now() },
     });
 
     if (!user) {
@@ -1266,11 +786,74 @@ export const validateResetToken = async (
     res.status(200).json({
       success: true,
       message: 'Token is valid',
+      data: {
+        email: user.email,
+      },
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
       message: 'Error validating reset token',
+      error: error.message,
+    });
+  }
+};
+
+export const resetPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      res.status(400).json({
+        success: false,
+        message: 'Token and password are required',
+      });
+      return;
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long',
+      });
+      return;
+    }
+
+    // Hash the token from the request
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with matching token and valid expiry
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token',
+      });
+      return;
+    }
+
+    // Update password and clear reset token fields
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting password',
       error: error.message,
     });
   }

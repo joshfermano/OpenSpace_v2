@@ -77,38 +77,56 @@ export const authApi = {
 
   getCurrentUser: async () => {
     try {
+      console.log('Fetching current user data...');
       const response = await fetchWithAuth('/api/auth/me');
+
+      console.log('Current user response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response from /api/auth/me:', errorText);
+
+        return {
+          success: false,
+          message:
+            response.status === 401
+              ? 'User session expired or invalid'
+              : `Server error: ${response.status} ${response.statusText}`,
+        };
+      }
+
       const data = await response.json();
+      console.log('Current user data retrieved successfully');
       return data;
     } catch (error) {
       console.error('Get current user error:', error);
       return {
         success: false,
-        message: 'Network error while fetching user data',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Network error while fetching user data',
       };
     }
   },
 
-  sendEmailVerificationOTP: async () => {
+  // Email verification
+  initiateEmailVerification: async (email: string) => {
     try {
-      console.log('Requesting email verification OTP...');
       const response = await fetchWithAuth(
-        '/api/auth/email-verification/send',
+        '/api/auth/email-verification/initiate',
         {
           method: 'POST',
+          body: JSON.stringify({ email }),
         }
       );
-
-      console.log('OTP request status:', response.status);
       const data = await response.json();
-      console.log('OTP response data:', data);
-
       return data;
     } catch (error) {
-      console.error('Error requesting email verification:', error);
+      console.error('Error initiating email verification:', error);
       return {
         success: false,
-        message: 'Network error while requesting verification email',
+        message: 'Network error while initiating email verification',
       };
     }
   },
@@ -137,13 +155,19 @@ export const authApi = {
     }
   },
 
+  // Update the verifyEmailWithOTP function
   verifyEmailWithOTP: async (otp: string) => {
     try {
       console.log('Verifying email with OTP:', otp);
-      const response = await fetchWithAuth(
-        '/api/auth/email-verification/verify',
+
+      const response = await fetch(
+        `${API_URL}/api/auth/email-verification/verify`,
         {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
           body: JSON.stringify({ otp }),
         }
       );
@@ -162,6 +186,7 @@ export const authApi = {
     }
   },
 
+  // Phone verification
   initiatePhoneVerification: async (phoneNumber: string) => {
     try {
       const response = await fetchWithAuth(
@@ -207,6 +232,11 @@ export const authApi = {
     idType: string;
     idNumber: string;
     idImage: string;
+    businessDocument?: {
+      certificateType: string;
+      certificateNumber: string;
+      certificateImage: string;
+    };
   }) => {
     try {
       const response = await fetchWithAuth('/api/auth/id-verification/upload', {
@@ -224,7 +254,8 @@ export const authApi = {
     }
   },
 
-  sendPasswordResetEmail: async (email: string) => {
+  // Password reset
+  requestPasswordReset: async (email: string) => {
     try {
       console.log(`Sending password reset email to: ${email}`);
       const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
@@ -242,6 +273,22 @@ export const authApi = {
       return {
         success: false,
         message: 'Network error while sending password reset email',
+      };
+    }
+  },
+
+  validateResetToken: async (token: string) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/auth/validate-reset-token/${token}`
+      );
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error validating reset token:', error);
+      return {
+        success: false,
+        message: 'Network error while validating reset token',
       };
     }
   },
@@ -268,6 +315,7 @@ export const authApi = {
     }
   },
 
+  // Host functionality
   becomeHost: async () => {
     try {
       const response = await fetchWithAuth('/api/auth/become-host', {
@@ -280,6 +328,28 @@ export const authApi = {
       return {
         success: false,
         message: 'Network error while processing host request',
+      };
+    }
+  },
+
+  // For email verification troubleshooting
+  sendEmailVerificationOTP: async () => {
+    try {
+      console.log('Requesting email verification OTP...');
+      const response = await fetchWithAuth('/api/email-verification/send-otp', {
+        method: 'POST',
+      });
+
+      console.log('OTP request status:', response.status);
+      const data = await response.json();
+      console.log('OTP response data:', data);
+
+      return data;
+    } catch (error) {
+      console.error('Error requesting email verification:', error);
+      return {
+        success: false,
+        message: 'Network error while requesting verification email',
       };
     }
   },
@@ -305,6 +375,61 @@ export const authApi = {
       return {
         success: false,
         message: 'Error testing email delivery',
+      };
+    }
+  },
+
+  // Initial admin setup
+  checkAdminExists: async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/check-admin-exists`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error checking admin existence:', error);
+      return {
+        success: false,
+        adminExists: true,
+        message: 'Network error while checking admin existence',
+      };
+    }
+  },
+
+  initialAdminSetup: async (userData: Record<string, any>) => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/initial-admin-setup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error in initial admin setup:', error);
+      return {
+        success: false,
+        message: 'Network error while setting up admin account',
+      };
+    }
+  },
+
+  createAdmin: async (userData: Record<string, any>) => {
+    try {
+      const response = await fetchWithAuth('/api/admin/users/create-admin', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating admin user:', error);
+      return {
+        success: false,
+        message: 'Network error while creating admin user',
       };
     }
   },

@@ -28,7 +28,7 @@ const AdminModal: React.FC<AdminModalProps> = ({
             {title}
           </h3>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-6 dark:text-light">{children}</div>
         {footerContent && (
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 rounded-b-lg flex justify-end">
             {footerContent}

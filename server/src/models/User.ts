@@ -25,6 +25,12 @@ export interface IUser extends Document {
     verificationStatus: 'pending' | 'approved' | 'rejected';
     verificationDate?: Date;
     rejectionReason?: string;
+    businessDocument?: {
+      certificateType: string;
+      certificateNumber: string;
+      certificateImage: string;
+      uploadDate: Date;
+    };
   };
   address?: {
     street: string;
@@ -124,7 +130,24 @@ const userSchema = new Schema<IUser>(
       default: false,
     },
     identificationDocument: {
-      idType: { type: String },
+      idType: {
+        type: String,
+        enum: [
+          'Philippine National ID',
+          'ePhilID',
+          'Passport',
+          'LTO Drivers License',
+          'SSS Card',
+          'GSIS Card',
+          'UMID Card',
+          'PRC ID',
+          'COMELEC Voters ID',
+          'Senior Citizen ID',
+          'PhilHealth ID',
+          'Postal ID',
+          'TIN Card',
+        ],
+      },
       idNumber: { type: String },
       idImage: { type: String },
       uploadDate: { type: Date },
@@ -135,6 +158,12 @@ const userSchema = new Schema<IUser>(
       },
       verificationDate: { type: Date },
       rejectionReason: { type: String },
+      businessDocument: {
+        certificateType: { type: String },
+        certificateNumber: { type: String },
+        certificateImage: { type: String },
+        uploadDate: { type: Date },
+      },
     },
     address: {
       street: { type: String },

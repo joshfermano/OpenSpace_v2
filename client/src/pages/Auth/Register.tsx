@@ -84,7 +84,7 @@ const Register = () => {
 
       if (user) {
         // Redirect to verification page
-        navigate('/verification/email-sent');
+        navigate('/verification/email-verification');
       } else {
         setError('Registration failed. Please try again.');
       }

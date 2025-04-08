@@ -29,6 +29,20 @@ export const userApi = {
     }
   },
 
+  getUserById: async (userId: string) => {
+    try {
+      const response = await fetchWithAuth(`/api/users/${userId}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error fetching user ${userId}:`, error);
+      return {
+        success: false,
+        message: 'Network error while fetching user details',
+      };
+    }
+  },
+
   updateUserProfile: async (profileData: any) => {
     try {
       const response = await fetchWithAuth('/api/users/profile', {

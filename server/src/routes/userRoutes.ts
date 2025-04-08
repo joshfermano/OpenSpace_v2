@@ -1,6 +1,6 @@
 import express from 'express';
 import * as userController from '../controllers/userController';
-import { protect, adminOnly } from '../middlewares/authMiddleware';
+import { protect } from '../middlewares/authMiddleware';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
@@ -69,12 +69,7 @@ router.get('/saved-rooms', userController.getSavedRooms);
 router.post('/save-room', userController.saveRoom);
 router.delete('/saved-rooms/:roomId', userController.unsaveRoom);
 
-// Admin-only routes
-router.use('/admin', adminOnly);
-router.get('/admin/users', userController.getAllUsers);
-router.get('/admin/users/:userId', userController.getUserById);
-router.put('/admin/users/:userId', userController.updateUserById);
-
-router.get('/admin/dashboard-summary', userController.getDashboardSummary);
+// Get user (for viewing other users' profiles)
+router.get('/:userId', userController.getUserById);
 
 export default router;

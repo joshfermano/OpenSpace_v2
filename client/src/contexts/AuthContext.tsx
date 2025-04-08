@@ -38,38 +38,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const clearError = () => setError(null);
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setIsLoading(true);
-        const response = await authApi.getCurrentUser();
+  // Enhanced checkAuth function
+  const checkAuth = async () => {
+    try {
+      setIsLoading(true);
+      const response = await authApi.getCurrentUser();
 
-        if (response.success && response.data) {
-          setUser(response.data);
-        } else {
-          setUser(null);
-        }
-      } catch (err) {
-        console.error('Auth check failed:', err);
+      console.log('Auth check response:', response);
+
+      if (response.success && response.data) {
+        setUser(response.data);
+      } else {
         setUser(null);
-      } finally {
-        setIsLoading(false);
+        // Clear any existing auth data
+        document.cookie =
+          'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       }
-    };
-
-    // Listen for auth expiration
-    window.addEventListener('auth:expired', () => {
+    } catch (err) {
+      console.error('Auth check failed:', err);
       setUser(null);
-    });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     checkAuth();
 
+    const handleAuthExpired = () => {
+      setUser(null);
+      // Optionally show a message to the user
+      setError('Your session has expired. Please log in again.');
+    };
+
+    window.addEventListener('auth:expired', handleAuthExpired);
+
     return () => {
-      window.removeEventListener('auth:expired', () => {
-        setUser(null);
-      });
+      window.removeEventListener('auth:expired', handleAuthExpired);
     };
   }, []);
+
+  const refreshUser = async () => {
+    try {
+      setIsLoading(true);
+      const response = await authApi.getCurrentUser();
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to refresh user data');
+      }
+
+      setUser(response.data);
+      return response.data;
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh user data');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (
     email: string,
@@ -130,24 +156,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return null;
     } catch (err: any) {
       setError(err.message || 'Failed to register');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const refreshUser = async () => {
-    try {
-      setIsLoading(true);
-      const response = await authApi.getCurrentUser();
-
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to refresh user data');
-      }
-
-      setUser(response.data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to refresh user data');
       throw err;
     } finally {
       setIsLoading(false);

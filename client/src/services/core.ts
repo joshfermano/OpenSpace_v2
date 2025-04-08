@@ -13,7 +13,7 @@ export const fetchWithAuth = async (
 
   const fetchOptions: RequestInit = {
     ...options,
-    credentials: 'include',
+    credentials: 'include', // Always include credentials
     headers,
   };
 
@@ -25,8 +25,12 @@ export const fetchWithAuth = async (
   try {
     const response = await fetch(url, fetchOptions);
 
+    // Check for authentication errors
     if (response.status === 401) {
-      window.dispatchEvent(new Event('auth:expired'));
+      console.warn('Authentication failed for request:', endpoint);
+
+      // Don't immediately dispatch event - let the caller handle it
+      // so we don't interrupt the current operation
     }
 
     return response;

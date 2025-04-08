@@ -12,6 +12,12 @@ interface VerificationRequest {
   status: string;
   documentUrl: string;
   imageUrl: string | null;
+  businessDocument?: {
+    certificateType: string;
+    certificateNumber: string;
+    certificateImage: string;
+    uploadDate: Date;
+  };
 }
 
 interface StatusConfig {
@@ -135,16 +141,30 @@ const VerificationRequests: React.FC<VerificationRequestsProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       <button
-                        onClick={() =>
-                          onViewDocument(
-                            request.documentUrl.startsWith('http')
-                              ? request.documentUrl
-                              : `${import.meta.env.VITE_API_URL || ''}${
-                                  request.documentUrl
-                                }`,
-                            request.userName
-                          )
-                        }
+                        onClick={() => {
+                          // Log the document URL for debugging
+                          console.log('Raw document URL:', request.documentUrl);
+
+                          // Handle different URL formats
+                          let formattedUrl;
+                          if (request.documentUrl.startsWith('http')) {
+                            formattedUrl = request.documentUrl;
+                          } else if (request.documentUrl.startsWith('data:')) {
+                            // This is a base64 encoded image
+                            formattedUrl = request.documentUrl;
+                          } else {
+                            // This is a relative path - properly format it
+                            formattedUrl = `${
+                              import.meta.env.VITE_API_URL || ''
+                            }/uploads/verifications/${
+                              request.documentUrl.split('/').pop() ||
+                              request.documentUrl
+                            }`;
+                          }
+
+                          console.log('Formatted document URL:', formattedUrl);
+                          onViewDocument(formattedUrl, request.userName);
+                        }}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors"
                         title="View Document">
                         <FiEye size={18} />
@@ -177,7 +197,7 @@ const VerificationRequests: React.FC<VerificationRequestsProps> = ({
               <tr>
                 <td
                   colSpan={5}
-                  className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  className="px-6 py-4 text-center text-gray-500 dark:text-light">
                   No verification requests found
                 </td>
               </tr>

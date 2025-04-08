@@ -13,6 +13,7 @@ interface User {
   idType: string | null;
   verificationStatus: string;
   imageUrl: string | null;
+  documentUrl?: string;
 }
 
 interface StatusConfig {
@@ -37,6 +38,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   onViewDocument,
   onBanUser,
   onDeleteUser,
+  onImageError,
 }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
@@ -96,20 +98,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                                   }`
                             }
                             alt={user.name}
-                            onError={(e) => {
-                              // Handle image error by replacing with icon
-                              e.currentTarget.style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                const iconDiv = document.createElement('div');
-                                iconDiv.className =
-                                  'h-10 w-10 flex items-center justify-center text-gray-500';
-                                parent.appendChild(iconDiv);
-                                // Use React icons in a non-React way as fallback
-                                iconDiv.innerHTML =
-                                  '<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
-                              }
-                            }}
+                            onError={onImageError}
                           />
                         ) : (
                           <div className="h-10 w-10 flex items-center justify-center text-gray-500">
@@ -128,14 +117,16 @@ const UserManagement: React.FC<UserManagementProps> = ({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-white capitalize">
+                    <span
+                      className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.role === 'admin'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                          : user.role === 'host'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                      }`}>
                       {user.role}
-                      {user.role === 'host' && user.rooms > 0 && (
-                        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          ({user.rooms} spaces)
-                        </span>
-                      )}
-                    </div>
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
@@ -165,18 +156,43 @@ const UserManagement: React.FC<UserManagementProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       {user.idType &&
-                        user.verificationStatus !== 'not_submitted' && (
+                        user.verificationStatus !== 'not_submitted' &&
+                        user.documentUrl && (
                           <button
-                            onClick={() =>
-                              onViewDocument(
-                                user.idType
-                                  ? `${
-                                      import.meta.env.VITE_API_URL || ''
-                                    }/users/${user.id}/id-document`
-                                  : `https://example.com/id/user-${user.id}`,
-                                user.name
-                              )
-                            }
+                            onClick={() => {
+                              console.log(
+                                'Raw document URL:',
+                                user.documentUrl
+                              );
+
+                              let formattedUrl;
+                              if (
+                                user.documentUrl &&
+                                user.documentUrl.startsWith('http')
+                              ) {
+                                formattedUrl = user.documentUrl;
+                              } else if (
+                                user.documentUrl &&
+                                user.documentUrl.startsWith('data:')
+                              ) {
+                                formattedUrl = user.documentUrl;
+                              } else if (user.documentUrl) {
+                                formattedUrl = `${
+                                  import.meta.env.VITE_API_URL || ''
+                                }/uploads/verifications/${
+                                  user.documentUrl.split('/').pop() ||
+                                  user.documentUrl
+                                }`;
+                              }
+
+                              console.log(
+                                'Formatted document URL:',
+                                formattedUrl
+                              );
+                              if (formattedUrl) {
+                                onViewDocument(formattedUrl, user.name);
+                              }
+                            }}
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors"
                             title="View ID Document">
                             <FiEye size={18} />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FiMail,
@@ -10,7 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { authApi } from '../../services/api';
 
 const EmailSent = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [isResending, setIsResending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -19,6 +19,17 @@ const EmailSent = () => {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!user) {
+        navigate('/auth/login', { replace: true });
+      }
+    };
+
+    checkAuth();
+  }, [user, navigate]);
 
   // Function to handle OTP input
   const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,8 +47,9 @@ const EmailSent = () => {
     setResendMessage(null);
 
     try {
-      // Use the resend endpoint specifically for resending
+      // Use the public endpoint for resending
       const response = await authApi.resendEmailVerification();
+      console.log('Resend response:', response);
 
       if (response.success) {
         setResendMessage({
@@ -76,18 +88,38 @@ const EmailSent = () => {
     setResendMessage(null);
 
     try {
+      console.log('Sending OTP verification request with code:', otp);
       const response = await authApi.verifyEmailWithOTP(otp);
+      console.log('OTP verification response:', response);
 
       if (response.success) {
         setResendMessage({
           type: 'success',
-          text: 'Email verified successfully! Redirecting to dashboard...',
+          text: 'Email verified successfully! Refreshing your user data...',
         });
 
-        // Wait for 2 seconds then redirect to dashboard
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
+        // Wait a moment before refreshing user data
+        setTimeout(async () => {
+          try {
+            // Refresh user data to update email verification status
+            await refreshUser();
+            setResendMessage({
+              type: 'success',
+              text: 'Email verified successfully! Redirecting to dashboard...',
+            });
+
+            // Wait another moment before redirecting
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 1000);
+          } catch (refreshError) {
+            console.error('Error refreshing user data:', refreshError);
+            setResendMessage({
+              type: 'error',
+              text: 'Email verified but failed to refresh user data. Please try logging in again.',
+            });
+          }
+        }, 1000);
       } else {
         setResendMessage({
           type: 'error',
@@ -105,6 +137,18 @@ const EmailSent = () => {
       setIsVerifying(false);
     }
   };
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
+          <p>Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-darkBlue flex items-center justify-center p-4">
@@ -197,11 +241,16 @@ const EmailSent = () => {
           disabled={isResending}
           className="w-full mb-4 px-6 py-2.5 flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-300">
           {isResending ? (
-            <FiRefreshCw className="animate-spin mr-2" />
+            <>
+              <FiRefreshCw className="animate-spin mr-2" />
+              Sending...
+            </>
           ) : (
-            <FiRefreshCw className="mr-2" />
+            <>
+              <FiRefreshCw className="mr-2" />
+              Resend Verification Code
+            </>
           )}
-          {isResending ? 'Sending...' : 'Resend Verification Code'}
         </button>
 
         <div className="flex flex-col space-y-3">
