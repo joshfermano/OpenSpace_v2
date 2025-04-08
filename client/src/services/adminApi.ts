@@ -246,11 +246,16 @@ export const adminApi = {
     }
   },
 
-  // Room approvals
   getPendingRoomApprovals: async () => {
     try {
       const response = await fetchWithAuth('/api/admin/rooms/pending');
-      return await response.json();
+
+      console.log('Raw API response:', response);
+
+      const data = await response.json();
+      console.log('Parsed data:', data);
+
+      return data;
     } catch (error) {
       console.error('Error fetching room approvals:', error);
       return {

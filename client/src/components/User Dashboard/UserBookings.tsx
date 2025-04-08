@@ -5,6 +5,7 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiAlertCircle,
+  FiChevronRight,
 } from 'react-icons/fi';
 import { FaPesoSign } from 'react-icons/fa6';
 
@@ -22,9 +23,10 @@ interface Booking {
 
 interface UserBookingsProps {
   bookings: Booking[] | undefined;
+  showAll?: boolean;
 }
 
-const UserBookings = ({ bookings }: UserBookingsProps) => {
+const UserBookings = ({ bookings, showAll = false }: UserBookingsProps) => {
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -84,15 +86,27 @@ const UserBookings = ({ bookings }: UserBookingsProps) => {
     return `${startFormatted} - ${endFormatted}`;
   };
 
+  // Only show two bookings on the dashboard, show all on dedicated page
+  const displayedBookings = showAll ? bookings : bookings?.slice(0, 2);
+
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-        Your Bookings
-      </h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Your Bookings
+        </h2>
+        {!showAll && bookings && bookings.length > 2 && (
+          <Link
+            to="/bookings/all"
+            className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center hover:underline">
+            View All <FiChevronRight className="ml-1" />
+          </Link>
+        )}
+      </div>
 
       {bookings && bookings.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {bookings.map((booking: Booking) => (
+          {displayedBookings?.map((booking: Booking) => (
             <div
               key={booking.id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">

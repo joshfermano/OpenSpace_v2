@@ -49,7 +49,7 @@ router.use(protect);
 
 // Profile management
 router.get('/profile', userController.getUserProfile);
-router.put('/profile', userController.updateProfile);
+router.put('/edit-profile', userController.updateProfile);
 router.put('/password', userController.changePassword);
 
 // Profile image upload

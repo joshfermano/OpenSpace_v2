@@ -12,6 +12,11 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Bookings
 import ViewBooking from './pages/Bookings/viewBooking';
+import ViewAllBookings from './pages/Bookings/ViewAllBookings';
+
+// Rooms
+import ViewAllListings from './pages/Room/ViewAllListings';
+import ViewAllFavorites from './pages/Room/ViewAllFavorites';
 
 // Dashboard Pages
 import EarningsDashboard from './pages/Dashboard/EarningsDashboard';
@@ -29,6 +34,7 @@ import AdminRegister from './pages/Auth/AdminRegister';
 
 // User Pages
 import UserDashboard from './pages/User/UserDashboard';
+import HostBookings from './pages/Host/HostBookings';
 import EditUserProfile from './pages/User/EditUserProfile';
 import AdminDashboard from './pages/User/AdminDashboard';
 import BecomeHost from './pages/Host/BecomeHost';
@@ -107,6 +113,42 @@ const router = createBrowserRouter(
           element={
             <ProtectedRoute>
               <ViewBooking />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/host/bookings"
+          element={
+            <ProtectedRoute requiredRole="host">
+              <HostBookings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/bookings/all"
+          element={
+            <ProtectedRoute>
+              <ViewAllBookings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected Routes - Listings & Favorites */}
+        <Route
+          path="/listings/all"
+          element={
+            <ProtectedRoute requiredRole="host">
+              <ViewAllListings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/favorites/all"
+          element={
+            <ProtectedRoute>
+              <ViewAllFavorites />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../../services/core';
 import { FiUsers, FiFileText, FiHome } from 'react-icons/fi';
+import { FiMapPin, FiUser } from 'react-icons/fi';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminApi } from '../../services/adminApi';
@@ -105,6 +107,31 @@ const AdminDashboard = () => {
     totalSpaces: 0,
     hostCount: 0,
   });
+
+  useEffect(() => {
+    const fetchPendingRooms = async () => {
+      try {
+        const response = await adminApi.getPendingRoomApprovals();
+
+        if (response.success) {
+          // Log the response to debug
+          console.log('API Response:', response);
+
+          // Set the rooms directly from the data property
+          setRooms(response.data || []);
+        } else {
+          console.error(
+            'Failed to fetch pending room approvals:',
+            response.message
+          );
+        }
+      } catch (error) {
+        console.error('Error fetching pending room approvals:', error);
+      }
+    };
+
+    fetchPendingRooms();
+  }, []);
 
   // Fetch data from API
   useEffect(() => {
@@ -277,18 +304,36 @@ const AdminDashboard = () => {
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     e.currentTarget.style.display = 'none';
     const parent = e.currentTarget.parentElement;
-
     if (parent) {
       const iconDiv = document.createElement('div');
-      iconDiv.className =
-        'flex items-center justify-center h-full w-full text-gray-500';
-
-      const parentHeight = parent.clientHeight;
-      const iconSize = Math.floor(parentHeight * 0.6);
-
-      iconDiv.innerHTML = `<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="${iconSize}" width="${iconSize}" xmlns="http://www.w3.org/2000/svg"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-
+      iconDiv.className = 'h-full w-full flex items-center justify-center';
       parent.appendChild(iconDiv);
+      iconDiv.innerHTML =
+        '<svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>';
+    }
+  };
+
+  const handleApproveRoom = async (roomId: string) => {
+    try {
+      const response = await adminApi.approveRoom(roomId, true);
+      if (response.success) {
+        // Update your state to reflect the approval
+        setRooms(rooms.filter((room) => room._id !== roomId));
+      }
+    } catch (error) {
+      console.error('Error approving room:', error);
+    }
+  };
+
+  const handleRejectRoom = async (roomId: string) => {
+    try {
+      const response = await adminApi.approveRoom(roomId, false);
+      if (response.success) {
+        // Update your state to reflect the rejection
+        setRooms(rooms.filter((room) => room._id !== roomId));
+      }
+    } catch (error) {
+      console.error('Error rejecting room:', error);
     }
   };
 
@@ -474,15 +519,15 @@ const AdminDashboard = () => {
             {activeTab === 'rooms' && (
               <RoomApprovals
                 rooms={filteredRooms}
-                onViewRoom={(room) =>
-                  setPreviewData({ type: 'room', data: room })
-                }
-                onApproveRoom={(roomId) =>
-                  setConfirmAction({ type: 'approveRoom', id: roomId })
-                }
-                onRejectRoom={(roomId) =>
-                  setConfirmAction({ type: 'rejectRoom', id: roomId })
-                }
+                onViewRoom={(room) => {
+                  console.log('Room data received:', room); // Debug log
+                  setPreviewData({
+                    type: 'room',
+                    data: room,
+                  });
+                }}
+                onApproveRoom={handleApproveRoom}
+                onRejectRoom={handleRejectRoom}
                 onImageError={handleImageError}
               />
             )}
@@ -536,117 +581,275 @@ const AdminDashboard = () => {
         isOpen={!!previewData}
         title={
           previewData?.type === 'room'
-            ? `Room Details - ${previewData.data?.name}`
+            ? previewData.data?.title || 'Space Details'
             : `ID Document - ${previewData?.userName}`
         }
         onClose={() => setPreviewData(null)}
         footerContent={
-          <button
-            onClick={() => setPreviewData(null)}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-            Close
-          </button>
-        }>
-        {previewData?.type === 'room' && previewData.data ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              {previewData.data.images.map((url: string, index: number) => (
-                <img
-                  key={index}
-                  src={url}
-                  alt={`Room preview ${index + 1}`}
-                  className="w-full h-48 object-cover rounded-lg"
-                  onError={handleImageError}
-                />
-              ))}
-            </div>
-            <div className="space-y-2">
-              <p className="text-gray-600 dark:text-light/80">
-                <span className="font-medium text-gray-900 dark:text-light">
-                  Location:
-                </span>{' '}
-                {previewData.data.location}
-              </p>
-              <p className="text-gray-600 dark:text-light/80">
-                <span className="font-medium text-gray-900 dark:text-light">
-                  Category:
-                </span>{' '}
-                {previewData.data.category}
-              </p>
-              <p className="text-gray-600 dark:text-light/80">
-                <span className="font-medium text-gray-900 dark:text-light">
-                  Price:
-                </span>{' '}
-                ₱{Number(previewData.data.price).toLocaleString()}
-              </p>
-              <p className="text-gray-600 dark:text-light/80">
-                <span className="font-medium text-gray-900 dark:text-light">
-                  Capacity:
-                </span>{' '}
-                {previewData.data.capacity} people
-              </p>
-              <p className="text-gray-600 dark:text-light/80">
-                <span className="font-medium text-gray-900 dark:text-light">
-                  Description:
-                </span>{' '}
-                {previewData.data.description}
-              </p>
-              <div>
-                <span className="font-medium text-gray-900 dark:text-light">
-                  Amenities:
-                </span>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {previewData.data.amenities.map((amenity: string) => (
-                    <span
-                      key={amenity}
-                      className="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-light/80 rounded-full">
-                      {amenity}
-                    </span>
-                  ))}
-                </div>
+          previewData?.type === 'room' &&
+          previewData.data && (
+            <div className="flex w-full justify-between">
+              <div className="flex space-x-2">
+                {previewData.data.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setConfirmAction({
+                          type: 'approveRoom',
+                          id: previewData.data._id,
+                        });
+                        setPreviewData(null);
+                      }}
+                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmAction({
+                          type: 'rejectRoom',
+                          id: previewData.data._id,
+                        });
+                        setPreviewData(null);
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                      Reject
+                    </button>
+                  </>
+                )}
               </div>
-            </div>
-          </div>
-        ) : (
-          previewData?.type === 'document' && (
-            <div className="flex flex-col items-center">
-              <p className="mb-4 text-gray-700 dark:text-light">
-                Document provided by {previewData.userName}
-              </p>
-              {previewData.url ? (
-                <>
-                  <img
-                    src={previewData.url}
-                    alt="ID Document"
-                    className="max-w-full h-auto rounded-lg"
-                    onLoad={() =>
-                      console.log('Document image loaded successfully')
-                    }
-                    onError={(e) => {
-                      console.error(
-                        'Error loading document image:',
-                        previewData.url
-                      );
-                      e.currentTarget.src =
-                        '/assets/images/document-placeholder.png';
-                    }}
-                  />
-                  {/* Remove or truncate the URL display to avoid long text */}
-                  {!previewData.url.startsWith('data:') && (
-                    <p className="mt-4 text-sm text-gray-500 dark:text-light/70 truncate max-w-md">
-                      Source: {previewData.url.split('/').pop() || 'Document'}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 dark:text-light/70">
-                    Document image not available or could not be loaded.
-                  </p>
-                </div>
-              )}
+              <button
+                onClick={() => setPreviewData(null)}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                Close
+              </button>
             </div>
           )
+        }>
+        {previewData?.type === 'room' && previewData.data ? (
+          <div className="space-y-6 max-h-[650px] overflow-y-auto">
+            {/* Hero image with status badge */}
+            <div className="relative rounded-xl overflow-hidden h-64 bg-gray-100 dark:bg-gray-800">
+              {previewData.data.images && previewData.data.images.length > 0 ? (
+                <img
+                  src={`${API_URL}${
+                    previewData.data.images[0].startsWith('/') ? '' : '/'
+                  }${previewData.data.images[0]}`}
+                  alt={previewData.data.title || 'Room preview'}
+                  className="w-full h-full object-cover"
+                  onError={handleImageError}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <FiHome className="text-gray-400" size={48} />
+                </div>
+              )}
+              <div
+                className="absolute top-3 right-3 px-3 py-1 rounded-full text-sm font-medium tracking-wide
+          ${previewData.data.status === 'pending' 
+            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' 
+            : previewData.data.status === 'approved' 
+            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+            : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'}">
+                {previewData.data.status?.charAt(0).toUpperCase() +
+                  previewData.data.status?.slice(1) || 'Unknown'}
+              </div>
+            </div>
+
+            {/* Basic info */}
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {previewData.data.title}
+              </h2>
+              <div className="flex items-center mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <FiMapPin className="mr-1" size={14} />
+                <span>
+                  {previewData.data.location
+                    ? `${previewData.data.location.city}, ${previewData.data.location.state}`
+                    : 'Location unavailable'}
+                </span>
+              </div>
+            </div>
+
+            {/* Key details in a clean grid */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div>
+                <p className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                  Type
+                </p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {previewData.data.type === 'conference'
+                    ? 'Conference Room'
+                    : previewData.data.type === 'event'
+                    ? 'Events Place'
+                    : previewData.data.type === 'stay'
+                    ? 'Room Stay'
+                    : previewData.data.type || 'Not specified'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                  Price
+                </p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  ₱
+                  {Number(
+                    previewData.data.price?.basePrice || 0
+                  ).toLocaleString()}
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {previewData.data.type === 'conference'
+                      ? ' / hour'
+                      : ' / night'}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                  Capacity
+                </p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {previewData.data.capacity?.maxGuests || 0} people
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                  Created
+                </p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {previewData.data.createdAt
+                    ? new Date(previewData.data.createdAt).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )
+                    : 'Unknown'}
+                </p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Description
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed line-clamp-3">
+                {previewData.data.description || 'No description provided'}
+              </p>
+            </div>
+
+            {/* Amenities tags */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Amenities
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {previewData.data.amenities &&
+                previewData.data.amenities.length > 0 ? (
+                  previewData.data.amenities
+                    .slice(0, 8)
+                    .map((amenity: string, index: number) => (
+                      <span
+                        key={index}
+                        className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 
+                         text-xs rounded-full">
+                        {amenity}
+                      </span>
+                    ))
+                ) : (
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    No amenities listed
+                  </span>
+                )}
+                {previewData.data.amenities &&
+                  previewData.data.amenities.length > 8 && (
+                    <span
+                      className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 
+                   text-xs rounded-full">
+                      +{previewData.data.amenities.length - 8} more
+                    </span>
+                  )}
+              </div>
+            </div>
+
+            {/* Host info - compact version */}
+            <div className="flex items-center pt-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 mr-3">
+                {previewData.data.host?.profileImage ? (
+                  <img
+                    src={`${API_URL}${
+                      previewData.data.host.profileImage.startsWith('/')
+                        ? ''
+                        : '/'
+                    }${previewData.data.host.profileImage}`}
+                    alt="Host"
+                    className="w-full h-full object-cover"
+                    onError={handleImageError}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <FiUser size={14} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-sm text-gray-900 dark:text-white">
+                  {previewData.data.host
+                    ? `${previewData.data.host.firstName || ''} ${
+                        previewData.data.host.lastName || ''
+                      }`
+                    : 'Unknown Host'}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Host</p>
+              </div>
+            </div>
+
+            {/* More images - thumbnails */}
+            {previewData.data.images && previewData.data.images.length > 1 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  More Photos
+                </h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {previewData.data.images
+                    .slice(1, 5)
+                    .map((url: string, index: number) => (
+                      <div
+                        key={index + 1}
+                        className="aspect-square rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
+                        <img
+                          src={`${API_URL}${
+                            url.startsWith('/') ? '' : '/'
+                          }${url}`}
+                          alt={`Room preview ${index + 2}`}
+                          className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                          onError={handleImageError}
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : previewData?.type === 'document' && previewData.url ? (
+          <div className="flex flex-col items-center">
+            <img
+              src={previewData.url}
+              alt="ID Document"
+              className="max-w-full h-auto rounded-lg"
+              onError={(e) => {
+                console.error('Error loading document image:', previewData.url);
+                e.currentTarget.src = '/assets/images/document-placeholder.png';
+              }}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-40">
+            <p className="text-gray-500 dark:text-gray-400">
+              No preview data available
+            </p>
+          </div>
         )}
       </AdminModal>
 

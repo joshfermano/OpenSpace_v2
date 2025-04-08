@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiCalendar, FiHome, FiHeart } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
-import { rooms } from '../../config/rooms';
-import { userApi } from '../../services/api';
+import { userApi } from '../../services/userApi'; // Fixed API import path
+import { bookingApi } from '../../services/bookingApi';
 import UserHeader from '../../components/User Dashboard/UserHeader';
 import UserBookings from '../../components/User Dashboard/UserBookings';
 import UserListings from '../../components/User Dashboard/UserListings';
 import UserFavorites from '../../components/User Dashboard/UsersFavorites';
+import HostBookingsLink from '../../components/Host/HostBookingsLink'; // Added missing import
 
 interface Booking {
   id: string;
@@ -57,10 +58,7 @@ const UserDashboard = () => {
     'bookings' | 'listings' | 'favorites'
   >('bookings');
   const [loading, setLoading] = useState(true);
-
-  const favoriteRooms = userData?.favorites
-    ? rooms.filter((room) => userData.favorites?.includes(room.id.toString()))
-    : [];
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -71,18 +69,17 @@ const UserDashboard = () => {
           return;
         }
 
-        const response = await userApi.getUserDashboard();
+        // Fetch user dashboard data
+        const dashboardResponse = await userApi.getUserDashboard();
 
-        if (response.success && response.data) {
+        if (dashboardResponse.success && dashboardResponse.data) {
           const combinedUserData: ExtendedUser = {
             ...user,
-            ...response.data.user,
+            ...dashboardResponse.data.user,
             phoneNumber:
-              response.data.user.phoneNumber || user.phoneNumber || '',
+              dashboardResponse.data.user.phoneNumber || user.phoneNumber || '',
             dateJoined:
-              response.data.user.createdAt || new Date().toISOString(),
-            bookings: response.data.bookings || [],
-            favorites: response.data.favorites || [],
+              dashboardResponse.data.user.createdAt || new Date().toISOString(),
           };
 
           setUserData(combinedUserData);
@@ -91,9 +88,27 @@ const UserDashboard = () => {
             ...(user as ExtendedUser),
             phoneNumber: user.phoneNumber || '',
             dateJoined: user.createdAt || new Date().toISOString(),
-            bookings: [],
-            favorites: [],
           });
+        }
+
+        // Fetch user bookings
+        const bookingsResponse = await bookingApi.getUserBookings();
+        if (bookingsResponse.success && bookingsResponse.data) {
+          // Map the API response to match our Booking interface
+          const formattedBookings = bookingsResponse.data.map(
+            (booking: any) => ({
+              id: booking._id,
+              roomId: booking.room._id,
+              startDate: booking.checkIn,
+              endDate: booking.checkOut,
+              checkInTime: booking.checkInTime || '2:00 PM',
+              checkOutTime: booking.checkOutTime || '12:00 PM',
+              totalPrice: booking.totalPrice,
+              paymentStatus: booking.paymentStatus,
+              status: booking.bookingStatus,
+            })
+          );
+          setBookings(formattedBookings);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -102,8 +117,6 @@ const UserDashboard = () => {
             ...(user as ExtendedUser),
             phoneNumber: user.phoneNumber || '',
             dateJoined: user.createdAt || new Date().toISOString(),
-            bookings: [],
-            favorites: [],
           });
         }
       } finally {
@@ -141,11 +154,11 @@ const UserDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-darkBlue p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        {/* User Profile Header - Now using the dedicated component */}
+        {/* User Profile Header */}
         {userData && <UserHeader userData={userData} />}
 
         {/* Tabs */}
-        <div className="flex mt-8 mb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex mt-8 mb-8 border-b border-gray-200 dark:border-gray-700">
           <button
             className={`px-4 py-2 font-medium text-sm ${
               activeTab === 'bookings'
@@ -184,15 +197,13 @@ const UserDashboard = () => {
         </div>
 
         {/* Content */}
-        {activeTab === 'bookings' && (
-          <UserBookings bookings={userData.bookings} />
-        )}
+        {activeTab === 'bookings' && <UserBookings bookings={bookings} />}
 
         {activeTab === 'listings' && <UserListings userData={userData} />}
 
-        {activeTab === 'favorites' && (
-          <UserFavorites favoriteRooms={favoriteRooms} />
-        )}
+        {activeTab === 'favorites' && <UserFavorites />}
+
+        {user?.role === 'host' && <HostBookingsLink />}
       </div>
     </div>
   );

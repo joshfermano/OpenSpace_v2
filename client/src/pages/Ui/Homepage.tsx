@@ -3,17 +3,41 @@ import { CiSearch } from 'react-icons/ci';
 import { MdOutlineFilterList } from 'react-icons/md';
 import { MdOutlineFilterListOff } from 'react-icons/md';
 import RoomCards from '../../components/Room/RoomCards';
-import { rooms } from '../../config/rooms';
+import { roomApi } from '../../services/roomApi';
 
 const Homepage = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<boolean>(false);
-  const [filteredRooms, setFilteredRooms] = useState(rooms);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [filteredRooms, setFilteredRooms] = useState<any[]>([]);
   const [categoryFilters, setCategoryFilters] = useState({
     'Room Stay': false,
     'Conference Room': false,
     'Events Place': false,
   });
+
+  // Fetch rooms from API
+  useEffect(() => {
+    const fetchRooms = async () => {
+      setLoading(true);
+      try {
+        const response = await roomApi.getRooms();
+        if (response.success) {
+          setRooms(response.data);
+          setFilteredRooms(response.data);
+        } else {
+          console.error('Failed to fetch rooms:', response.message);
+        }
+      } catch (error) {
+        console.error('Error fetching rooms:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, []);
 
   const toggleFilter = () => {
     setFilter(!filter);
@@ -29,16 +53,17 @@ const Homepage = () => {
 
   // Filter rooms based on search and category filters
   useEffect(() => {
-    let result = rooms;
+    let result = [...rooms];
 
     // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
       result = result.filter(
         (room) =>
-          room.name.toLowerCase().includes(searchLower) ||
-          room.location.toLowerCase().includes(searchLower) ||
-          room.description.toLowerCase().includes(searchLower)
+          room.title?.toLowerCase().includes(searchLower) ||
+          room.location?.city?.toLowerCase().includes(searchLower) ||
+          room.location?.country?.toLowerCase().includes(searchLower) ||
+          room.description?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -48,12 +73,12 @@ const Homepage = () => {
     );
     if (activeFilters.length > 0) {
       result = result.filter((room) =>
-        activeFilters.some(([category]) => room.category === category)
+        activeFilters.some(([category]) => room.type === category)
       );
     }
 
     setFilteredRooms(result);
-  }, [search, categoryFilters]);
+  }, [search, categoryFilters, rooms]);
 
   return (
     <section className="font-poppins p-4 bg-light text-darkBlue dark:bg-darkBlue dark:text-light transition-all duration-300">
@@ -176,10 +201,14 @@ const Homepage = () => {
           </p>
         </div>
 
-        {filteredRooms.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center items-center min-h-[400px]">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : filteredRooms.length > 0 ? (
           <RoomCards rooms={filteredRooms} />
         ) : (
-          <div className="min-h-screen flex flex-col items-center justify-center py-12 text-center">
+          <div className="min-h-[400px] flex flex-col items-center justify-center py-12 text-center">
             <div className="text-gray-400 dark:text-gray-500 text-6xl mb-4">
               🔍
             </div>

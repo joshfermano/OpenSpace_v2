@@ -45,7 +45,7 @@ export const userApi = {
 
   updateUserProfile: async (profileData: any) => {
     try {
-      const response = await fetchWithAuth('/api/users/profile', {
+      const response = await fetchWithAuth('/api/users/edit-profile', {
         method: 'PUT',
         body: JSON.stringify(profileData),
       });
@@ -56,6 +56,23 @@ export const userApi = {
       return {
         success: false,
         message: 'Network error while updating profile',
+      };
+    }
+  },
+
+  becomeHost: async (hostData: { bio: string; languagesSpoken: string[] }) => {
+    try {
+      const response = await fetchWithAuth('/api/auth/become-host', {
+        method: 'POST',
+        body: JSON.stringify(hostData),
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error becoming a host:', error);
+      return {
+        success: false,
+        message: 'Network error while becoming a host',
       };
     }
   },
@@ -129,9 +146,8 @@ export const userApi = {
 
   saveRoom: async (roomId: string) => {
     try {
-      const response = await fetchWithAuth('/api/users/save-room', {
+      const response = await fetchWithAuth(`/api/users/save-room/${roomId}`, {
         method: 'POST',
-        body: JSON.stringify({ roomId }),
       });
       const data = await response.json();
       return data;
@@ -139,14 +155,14 @@ export const userApi = {
       console.error('Error saving room:', error);
       return {
         success: false,
-        message: 'Network error while saving room',
+        message: 'Failed to save room',
       };
     }
   },
 
   unsaveRoom: async (roomId: string) => {
     try {
-      const response = await fetchWithAuth(`/api/users/saved-rooms/${roomId}`, {
+      const response = await fetchWithAuth(`/api/users/unsave-room/${roomId}`, {
         method: 'DELETE',
       });
       const data = await response.json();
@@ -155,7 +171,7 @@ export const userApi = {
       console.error('Error removing saved room:', error);
       return {
         success: false,
-        message: 'Network error while removing saved room',
+        message: 'Failed to remove room from saved list',
       };
     }
   },

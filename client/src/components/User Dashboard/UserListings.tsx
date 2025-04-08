@@ -1,6 +1,25 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiHome, FiMap, FiEdit2 } from 'react-icons/fi';
+import { FiHome, FiMap, FiEdit2, FiChevronRight } from 'react-icons/fi';
 import { FaPesoSign } from 'react-icons/fa6';
+import { roomApi } from '../../services/roomApi';
+import { API_URL } from '../../services/core';
+
+interface Room {
+  _id: string;
+  title: string;
+  location: {
+    city: string;
+    country: string;
+  };
+  price: {
+    basePrice: number;
+  };
+  type: string;
+  status: string;
+  isPublished: boolean;
+  images?: string[];
+}
 
 interface HostInfo {
   bio?: string;
@@ -19,29 +38,84 @@ interface User {
 
 interface UserListingsProps {
   userData: User;
+  showAll?: boolean;
 }
 
-const UserListings = ({ userData }: UserListingsProps) => {
+const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
+  const [listings, setListings] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      if (userData.role === 'host') {
+        try {
+          const response = await roomApi.getMyRooms();
+          if (response.success) {
+            setListings(response.data || []);
+          }
+        } catch (error) {
+          console.error('Error fetching listings:', error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    fetchListings();
+  }, [userData.role]);
+
+  // Format image URL to ensure it includes the API base URL if it's a relative path
+  const getImageUrl = (imagePath: string) => {
+    if (!imagePath) return '';
+
+    // If the image path already starts with http:// or https:// or data:, return as is
+    if (
+      imagePath.startsWith('http://') ||
+      imagePath.startsWith('https://') ||
+      imagePath.startsWith('data:')
+    ) {
+      return imagePath;
+    }
+
+    // If path starts with a slash, ensure we don't double-slash
+    const normalizedPath = imagePath.startsWith('/')
+      ? imagePath
+      : `/${imagePath}`;
+
+    return `${API_URL}${normalizedPath}`;
+  };
+
+  // Only show two listings on the dashboard, show all on dedicated page
+  const displayedListings = showAll ? listings : listings.slice(0, 2);
+
+  if (loading) {
+    return <div className="animate-pulse">Loading your listings...</div>;
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Your Listings
         </h2>
-        {userData.role === 'host' && (
-          <div className="flex space-x-2">
+        <div className="flex space-x-2">
+          {userData.role === 'host' && (
             <Link
               to="/rooms/create"
-              className="inline-flex items-center px-2 py-1 bg-darkBlue dark:bg-light hover:bg-blue-600 text-light dark:text-darkBlue dark:hover:text-light hover:scale-105 rounded-lg transition-all duration-500">
+              className="inline-flex items-center px-2 py-1 bg-darkBlue dark:bg-light hover:bg-blue-600 text-light dark:text-darkBlue dark:hover:text-light hover:scale-105 rounded-lg transition-all duration-500 text-sm">
               <span className="text-lg mr-1">+</span> New Listing
             </Link>
+          )}
+          {!showAll && userData.role === 'host' && listings.length > 2 && (
             <Link
-              to="/dashboard/earnings"
-              className="inline-flex items-center px-2 py-1 bg bg-darkBlue text-light dark:bg-light dark:text-darkBlue hover:text-light hover:bg-green-500 rounded-lg hover:scale-105 transition-all duration-500">
-              <FaPesoSign className="mr-1" /> View Earnings
+              to="/listings/all"
+              className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center hover:underline">
+              View All <FiChevronRight className="ml-1" />
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {userData.role !== 'host' ? (
@@ -65,75 +139,96 @@ const UserListings = ({ userData }: UserListingsProps) => {
           </Link>
         </div>
       ) : userData.hostInfo ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Mock listings since we don't have actual host listings data */}
-          {/* You would replace this with actual listings data from the host */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-            <div className="h-48 bg-gray-200 dark:bg-gray-700 relative">
-              <div className="absolute top-3 left-3 bg-white dark:bg-gray-800 text-sm font-medium px-2 py-1 rounded-lg">
-                Active
-              </div>
-            </div>
-            <div className="p-5">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Beachfront Conference Room
-              </h3>
-              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
-                <FiMap className="mr-1" /> Boracay, Aklan
-              </div>
-              <div className="flex justify-between">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    Price
-                  </p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    ₱2,500 / hour
-                  </p>
+        listings.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {displayedListings.map((room) => (
+              <div
+                key={room._id}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                <div className="h-48 bg-gray-200 dark:bg-gray-700 relative">
+                  {room.images && room.images.length > 0 ? (
+                    <img
+                      src={getImageUrl(room.images[0])}
+                      alt={room.title}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        // Fallback if image fails to load
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '';
+                        e.currentTarget.parentElement!.innerHTML = `
+                          <div class="h-full w-full flex items-center justify-center">
+                            <span class="text-gray-400">
+                              <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="32" width="32" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                              </svg>
+                            </span>
+                          </div>
+                        `;
+                      }}
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center">
+                      <FiHome className="text-gray-400" size={32} />
+                    </div>
+                  )}
+                  <div className="absolute top-3 left-3 bg-white dark:bg-gray-800 text-sm font-medium px-2 py-1 rounded-lg">
+                    {room.isPublished && room.status === 'approved'
+                      ? 'Active'
+                      : room.status}
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Link
-                    to="/rooms/edit/1"
-                    className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                    <FiEdit2 size={18} />
-                  </Link>
+                <div className="p-5">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    {room.title}
+                  </h3>
+                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    <FiMap className="mr-1" /> {room.location.city},{' '}
+                    {room.location.country}
+                  </div>
+                  <div className="flex justify-between">
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                        Price
+                      </p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        ₱{room.price.basePrice.toLocaleString()}{' '}
+                        {room.type === 'conference' ? '/ hour' : '/ night'}
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Link
+                        to={`/rooms/edit/${room._id}`}
+                        className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <FiEdit2 size={18} />
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-            <div className="h-48 bg-gray-200 dark:bg-gray-700 relative">
-              <div className="absolute top-3 left-3 bg-white dark:bg-gray-800 text-sm font-medium px-2 py-1 rounded-lg">
-                Active
-              </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900 flex items-center justify-center">
+              <FiHome
+                className="text-purple-600 dark:text-purple-400"
+                size={24}
+              />
             </div>
-            <div className="p-5">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                City View Meeting Room
-              </h3>
-              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
-                <FiMap className="mr-1" /> Makati, Metro Manila
-              </div>
-              <div className="flex justify-between">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    Price
-                  </p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    ₱1,800 / hour
-                  </p>
-                </div>
-                <div className="flex space-x-2">
-                  <Link
-                    to="/rooms/edit/2"
-                    className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                    <FiEdit2 size={18} />
-                  </Link>
-                </div>
-              </div>
-            </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              No listings yet
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              Start creating your first listing to share your space.
+            </p>
+            <Link
+              to="/rooms/create"
+              className="inline-flex items-center px-4 py-2 bg-darkBlue dark:bg-light hover:bg-blue-600 text-light dark:text-darkBlue dark:hover:text-light hover:scale-105 rounded-lg transition-all duration-500">
+              Create Listing
+            </Link>
           </div>
-        </div>
+        )
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900 flex items-center justify-center">
@@ -155,6 +250,19 @@ const UserListings = ({ userData }: UserListingsProps) => {
           </Link>
         </div>
       )}
+
+      {userData.role === 'host' &&
+        userData.hostInfo &&
+        !showAll &&
+        listings.length > 0 && (
+          <div className="mt-4 flex justify-center">
+            <Link
+              to="/dashboard/earnings"
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+              <FaPesoSign className="mr-2" /> View Earnings
+            </Link>
+          </div>
+        )}
     </div>
   );
 };

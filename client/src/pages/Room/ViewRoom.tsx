@@ -1,41 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import {
-  FiMapPin,
-  FiUsers,
-  FiClock,
-  FiCalendar,
-  FiShield,
-  FiInfo,
-} from 'react-icons/fi';
-import Openspace from '../../assets/logo_white.jpg';
-import ReviewArea from '../../components/Room/ReviewArea';
-import { useAuth } from '../../contexts/AuthContext';
+import { FiMapPin, FiCalendar, FiClock, FiHeart } from 'react-icons/fi';
 import { IoMdArrowBack } from 'react-icons/io';
-import { BiCheckShield } from 'react-icons/bi';
+import { MdOutlineRule } from 'react-icons/md';
 import { HiOutlineDocumentText } from 'react-icons/hi';
 import { RiTimeLine } from 'react-icons/ri';
-import { MdOutlineRule } from 'react-icons/md';
-import logo_black from '../../assets/logo_black.jpg';
-import { rooms, getHostById } from '../../config/rooms';
-import Calendar from 'react-calendar';
-import '../../css/calendar.css'; //
 
-// Sample unavailable dates
-const unavailableDates = [
-  new Date(2025, 3, 15),
-  new Date(2025, 3, 16),
-  new Date(2025, 3, 17),
-  new Date(2025, 3, 25),
-  new Date(2025, 3, 26),
-];
+import Calendar from 'react-calendar';
+import { useAuth } from '../../contexts/AuthContext';
+import ReviewArea from '../../components/Room/ReviewArea';
+import { roomApi } from '../../services/roomApi';
+import { userApi } from '../../services/userApi';
+import placeholder from '../../assets/logo_black.jpg';
+import '../../css/calendar.css';
 
 const ViewRoom = () => {
   const { roomId } = useParams();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [room, setRoom] = useState<any>(null);
-  const [host, setHost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
@@ -54,8 +37,11 @@ const ViewRoom = () => {
     total: 0,
   });
   const [activeTab, setActiveTab] = useState<'details' | 'policies'>('details');
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [toggleFavoriteLoading, setToggleFavoriteLoading] = useState(false);
+  const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
 
-  // Time options
+  // Time options for checkin/checkout
   const timeOptions = [
     '7:00 AM',
     '8:00 AM',
@@ -73,37 +59,67 @@ const ViewRoom = () => {
     '8:00 PM',
     '9:00 PM',
     '10:00 PM',
-    '11:00 PM',
   ];
 
-  // Fetch room data
+  // Fetch room data and check if it's in user's favorites
   useEffect(() => {
-    // Simulate API call - replace with actual API in production
-    setTimeout(() => {
-      const foundRoom = rooms.find((r) => r.id === Number(roomId));
-      setRoom(foundRoom || null);
+    const fetchRoomData = async () => {
+      if (!roomId) return;
 
-      // Get host info if room is found
-      if (foundRoom && foundRoom.hostId) {
-        const roomHost = getHostById(foundRoom.hostId);
-        setHost(roomHost || null);
-      }
+      setLoading(true);
+      try {
+        // Fetch room details
+        const response = await roomApi.getRoomById(roomId);
 
-      // Set default check-in/out times based on room type
-      if (foundRoom) {
-        if (foundRoom.category === 'Room Stay') {
-          const roomPolicies = foundRoom.policies as any;
-          setCheckInTime(roomPolicies.checkIn);
-          setCheckOutTime(roomPolicies.checkOut);
-        } else if (foundRoom.category === 'Events Place') {
-          const eventPolicies = foundRoom.policies as any;
-          setCheckInTime(eventPolicies.setup.startTime);
+        if (response.success) {
+          setRoom(response.data);
+
+          // Set default times based on room type
+          if (response.data.type === 'Room Stay') {
+            setCheckInTime('2:00 PM');
+            setCheckOutTime('12:00 PM');
+          } else if (response.data.type === 'Conference Room') {
+            setCheckInTime('8:00 AM');
+            setCheckOutTime('5:00 PM');
+          } else if (response.data.type === 'Events Place') {
+            setCheckInTime('10:00 AM');
+            setCheckOutTime('10:00 PM');
+          }
+
+          // Set unavailable dates
+          if (
+            response.data.availability &&
+            response.data.availability.unavailableDates
+          ) {
+            const convertedDates =
+              response.data.availability.unavailableDates.map(
+                (dateString: string) => new Date(dateString)
+              );
+            setUnavailableDates(convertedDates);
+          }
+
+          // Check if this room is in user's favorites
+          if (isAuthenticated) {
+            const favoritesResponse = await userApi.getSavedRooms();
+            if (favoritesResponse.success) {
+              const isSaved = favoritesResponse.data.some(
+                (savedRoom: any) => savedRoom._id === roomId
+              );
+              setIsFavorite(isSaved);
+            }
+          }
+        } else {
+          console.error('Error fetching room:', response.message);
         }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setLoading(false);
-    }, 500);
-  }, [roomId]);
+    fetchRoomData();
+  }, [roomId, isAuthenticated]);
 
   // Calculate booking details when date range changes
   useEffect(() => {
@@ -113,18 +129,17 @@ const ViewRoom = () => {
       const differenceInTime = endDate.getTime() - startDate.getTime();
       const differenceInDays = Math.ceil(differenceInTime / (1000 * 3600 * 24));
 
-      let subtotal = room.price;
+      let subtotal = room.price?.basePrice || 0;
 
-      // Calculate based on room category
-      if (room.category === 'Room Stay') {
-        subtotal = room.price * differenceInDays;
-      } else if (room.category === 'Conference Room') {
-        const policies = room.policies as any;
-        const minimumHours = policies.minimumHours || 2;
-        subtotal =
-          room.price * Math.max(differenceInDays * minimumHours, minimumHours);
-      } else if (room.category === 'Events Place') {
-        subtotal = room.price;
+      // Calculate based on room type
+      if (room.type === 'Room Stay') {
+        subtotal = subtotal * differenceInDays;
+      } else if (room.type === 'Conference Room') {
+        // For conference rooms, price is per day
+        subtotal = subtotal * differenceInDays;
+      } else if (room.type === 'Events Place') {
+        // For events, price is per event (fixed)
+        subtotal = subtotal;
       }
 
       const serviceFee = subtotal * 0.1; // 10% service fee
@@ -138,6 +153,38 @@ const ViewRoom = () => {
       });
     }
   }, [dateRange, room]);
+
+  // Handle toggling favorite status
+  const handleToggleFavorite = async () => {
+    if (!isAuthenticated) {
+      // Redirect to login
+      navigate(`/auth/login?redirect=/rooms/${roomId}`);
+      return;
+    }
+
+    if (!roomId) return;
+
+    setToggleFavoriteLoading(true);
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const response = await userApi.unsaveRoom(roomId);
+        if (response.success) {
+          setIsFavorite(false);
+        }
+      } else {
+        // Add to favorites
+        const response = await userApi.saveRoom(roomId);
+        if (response.success) {
+          setIsFavorite(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite status:', error);
+    } finally {
+      setToggleFavoriteLoading(false);
+    }
+  };
 
   // Disable past dates, today, and unavailable dates
   const tileDisabled = ({ date, view }: { date: Date; view: string }) => {
@@ -158,11 +205,11 @@ const ViewRoom = () => {
     );
   };
 
-  // You can optionally add a tileClassName function to further customize styling based on date
+  // Custom class for calendar tiles
   const tileClassName = ({ date, view }: { date: Date; view: string }) => {
     if (view !== 'month') return '';
 
-    // For unavailable dates (this provides an additional class if needed)
+    // For unavailable dates
     if (tileDisabled({ date, view })) {
       return 'unavailable-date';
     }
@@ -187,8 +234,8 @@ const ViewRoom = () => {
         state: {
           bookingDetails: {
             roomId,
-            roomName: room.name,
-            location: room.location,
+            roomName: room.title,
+            location: `${room.location.city}, ${room.location.country}`,
             checkInDate: formattedCheckInDate,
             checkOutDate: formattedCheckOutDate,
             checkInTime: checkInTime,
@@ -197,14 +244,14 @@ const ViewRoom = () => {
             subtotal: bookingDetails.subtotal,
             serviceFee: bookingDetails.serviceFee,
             total: bookingDetails.total,
+            roomType: room.type,
+            roomImage:
+              room.images && room.images.length > 0 ? room.images[0] : null,
+            hostId: room.host._id,
+            hostName: `${room.host.firstName} ${room.host.lastName}`,
           },
         },
       });
-
-      // Alert for confirmation (you may want to remove this in production)
-      alert(
-        `Booking confirmed!\n\nCheck-in: ${formattedCheckInDate} at ${checkInTime}\nCheck-out: ${formattedCheckOutDate} at ${checkOutTime}\nTotal: ₱${bookingDetails.total.toLocaleString()}`
-      );
     }
   };
 
@@ -212,23 +259,14 @@ const ViewRoom = () => {
     setDateRange(value);
   };
 
-  // const handleTimeSelect = (time: string) => {
-  //   if (showTimeSelector === 'checkin') {
-  //     setCheckInTime(time);
-  //   } else if (showTimeSelector === 'checkout') {
-  //     setCheckOutTime(time);
-  //   }
-  //   setShowTimeSelector(null);
-  // };
-
   // Handle image navigation
   const nextImage = () => {
-    if (!room) return;
+    if (!room || !room.images || room.images.length === 0) return;
     setCurrentImageIndex((prev) => (prev + 1) % room.images.length);
   };
 
   const prevImage = () => {
-    if (!room) return;
+    if (!room || !room.images || room.images.length === 0) return;
     setCurrentImageIndex(
       (prev) => (prev - 1 + room.images.length) % room.images.length
     );
@@ -244,12 +282,11 @@ const ViewRoom = () => {
     });
   };
 
-  // Render policies based on room category
+  // Render policies based on room type
   const renderPolicies = () => {
     if (!room) return null;
 
-    if (room.category === 'Room Stay') {
-      const policies = room.policies as any;
+    if (room.type === 'Room Stay') {
       return (
         <div className="space-y-6">
           <div>
@@ -260,19 +297,19 @@ const ViewRoom = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300">
               <div className="flex items-start gap-2">
                 <span className="font-medium">Check-in:</span>
-                <span>{policies.checkIn}</span>
+                <span>{room.policies?.checkIn || '2:00 PM'}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="font-medium">Check-out:</span>
-                <span>{policies.checkOut}</span>
+                <span>{room.policies?.checkOut || '12:00 PM'}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="font-medium">Minimum stay:</span>
-                <span>{policies.minStay}</span>
+                <span>{room.policies?.minimumStay || '1 night'}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="font-medium">Maximum stay:</span>
-                <span>{policies.maxStay}</span>
+                <span>{room.policies?.maximumStay || '30 nights'}</span>
               </div>
             </div>
           </div>
@@ -283,7 +320,8 @@ const ViewRoom = () => {
               Cancellation Policy
             </h3>
             <p className="text-gray-700 dark:text-gray-300">
-              {policies.cancellation}
+              {room.policies?.cancellation ||
+                'Free cancellation up to 48 hours before check-in. Cancellations less than 48 hours in advance will be charged 50% of the booking amount.'}
             </p>
           </div>
 
@@ -293,25 +331,18 @@ const ViewRoom = () => {
               House Rules
             </h3>
             <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
-              {policies.houseRules.map((rule: string, index: number) => (
-                <li key={index}>{rule}</li>
-              ))}
+              {room.policies?.houseRules
+                ? room.policies.houseRules.map(
+                    (rule: string, index: number) => <li key={index}>{rule}</li>
+                  )
+                : ['No smoking', 'No parties or events', 'No pets'].map(
+                    (rule, index) => <li key={index}>{rule}</li>
+                  )}
             </ul>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-medium mb-3 flex items-center">
-              <BiCheckShield className="mr-2 text-blue-500" />
-              Security
-            </h3>
-            <p className="text-gray-700 dark:text-gray-300">
-              {policies.security}
-            </p>
           </div>
         </div>
       );
-    } else if (room.category === 'Conference Room') {
-      const policies = room.policies as any;
+    } else if (room.type === 'Conference Room') {
       return (
         <div className="space-y-6">
           <div>
@@ -321,20 +352,16 @@ const ViewRoom = () => {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300">
               <div className="flex items-start gap-2">
-                <span className="font-medium">Minimum hours:</span>
-                <span>{policies.minimumHours} hours</span>
+                <span className="font-medium">Operating hours:</span>
+                <span>
+                  {room.policies?.operatingHours || '8:00 AM - 8:00 PM'}
+                </span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="font-medium">Available hours:</span>
-                <span>{policies.availableHours}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Overtime rate:</span>
-                <span>{policies.overtime}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Equipment:</span>
-                <span>{policies.equipment}</span>
+                <span className="font-medium">Available days:</span>
+                <span>
+                  {room.policies?.availableDays || 'Monday - Saturday'}
+                </span>
               </div>
             </div>
           </div>
@@ -345,7 +372,8 @@ const ViewRoom = () => {
               Cancellation Policy
             </h3>
             <p className="text-gray-700 dark:text-gray-300">
-              {policies.cancellation}
+              {room.policies?.cancellation ||
+                'Free cancellation up to 24 hours before booking time. Late cancellations will be charged 50% of the booking fee.'}
             </p>
           </div>
 
@@ -355,25 +383,20 @@ const ViewRoom = () => {
               Room Rules
             </h3>
             <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
-              {policies.rules.map((rule: string, index: number) => (
-                <li key={index}>{rule}</li>
-              ))}
+              {room.policies?.rules
+                ? room.policies.rules.map((rule: string, index: number) => (
+                    <li key={index}>{rule}</li>
+                  ))
+                : [
+                    'Keep the space clean',
+                    'No loud music',
+                    'No food in meeting rooms',
+                  ].map((rule, index) => <li key={index}>{rule}</li>)}
             </ul>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-medium mb-3 flex items-center">
-              <BiCheckShield className="mr-2 text-blue-500" />
-              Security
-            </h3>
-            <p className="text-gray-700 dark:text-gray-300">
-              {policies.security}
-            </p>
           </div>
         </div>
       );
-    } else if (room.category === 'Events Place') {
-      const policies = room.policies as any;
+    } else if (room.type === 'Events Place') {
       return (
         <div className="space-y-6">
           <div>
@@ -383,20 +406,16 @@ const ViewRoom = () => {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300">
               <div className="flex items-start gap-2">
-                <span className="font-medium">Minimum hours:</span>
-                <span>{policies.minimumHours} hours</span>
+                <span className="font-medium">Available hours:</span>
+                <span>
+                  {room.policies?.availableHours || '8:00 AM - 10:00 PM'}
+                </span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="font-medium">Setup time:</span>
-                <span>{policies.setup.startTime}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Setup hours included:</span>
-                <span>{policies.setup.setupHours} hours</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Includes setup time:</span>
-                <span>{policies.setup.includesSetup ? 'Yes' : 'No'}</span>
+                <span className="font-medium">Setup time allowed:</span>
+                <span>
+                  {room.policies?.setupTime || '2 hours before event'}
+                </span>
               </div>
             </div>
           </div>
@@ -406,20 +425,10 @@ const ViewRoom = () => {
               <HiOutlineDocumentText className="mr-2 text-blue-500" />
               Cancellation Policy
             </h3>
-            <div className="text-gray-700 dark:text-gray-300 space-y-2">
-              <p>
-                <span className="font-medium">Full refund:</span>{' '}
-                {policies.cancellation.fullRefund}
-              </p>
-              <p>
-                <span className="font-medium">Partial refund:</span>{' '}
-                {policies.cancellation.partialRefund}
-              </p>
-              <p>
-                <span className="font-medium">No refund:</span>{' '}
-                {policies.cancellation.noRefund}
-              </p>
-            </div>
+            <p className="text-gray-700 dark:text-gray-300">
+              {room.policies?.cancellation ||
+                'Full refund if cancelled 14 days before the event. 50% refund if cancelled 7 days before. No refund for later cancellations.'}
+            </p>
           </div>
 
           <div>
@@ -428,52 +437,16 @@ const ViewRoom = () => {
               Venue Rules
             </h3>
             <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
-              {policies.rules.map((rule: string, index: number) => (
-                <li key={index}>{rule}</li>
-              ))}
+              {room.policies?.rules
+                ? room.policies.rules.map((rule: string, index: number) => (
+                    <li key={index}>{rule}</li>
+                  ))
+                : [
+                    'No confetti',
+                    'No smoking indoors',
+                    'Music must end by 10 PM',
+                  ].map((rule, index) => <li key={index}>{rule}</li>)}
             </ul>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center">
-                <BiCheckShield className="mr-2 text-blue-500" />
-                Security
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300">
-                {policies.security}
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center">
-                <FiShield className="mr-2 text-blue-500" />
-                Insurance
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300">
-                {policies.insurance}
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center">
-                <FiInfo className="mr-2 text-blue-500" />
-                Noise Restrictions
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300">
-                {policies.noise}
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-medium mb-3 flex items-center">
-                <FiMapPin className="mr-2 text-blue-500" />
-                Parking
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300">
-                {policies.parking}
-              </p>
-            </div>
           </div>
         </div>
       );
@@ -485,9 +458,7 @@ const ViewRoom = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-light dark:bg-darkBlue">
-        <div className="animate-pulse text-darkBlue dark:text-light">
-          Loading...
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -517,18 +488,36 @@ const ViewRoom = () => {
           <IoMdArrowBack /> Back to listings
         </Link>
 
-        {/* Room title */}
-        <h1 className="text-3xl font-bold mb-2">{room.name}</h1>
+        {/* Title and favorite button */}
+        <div className="flex justify-between items-start mb-2">
+          <h1 className="text-3xl font-bold">{room.title}</h1>
+          <button
+            onClick={handleToggleFavorite}
+            disabled={toggleFavoriteLoading}
+            className={`p-2 rounded-full transition-all ${
+              isFavorite
+                ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                : 'text-gray-400 hover:text-red-500 bg-gray-100 dark:bg-gray-800'
+            }`}>
+            <FiHeart
+              className={`text-xl ${isFavorite ? 'fill-current' : ''}`}
+            />
+          </button>
+        </div>
 
         {/* Location and category */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-6">
           <div className="flex items-center text-gray-600 dark:text-gray-300">
             <FiMapPin className="mr-1" />
-            <span>{room.location}</span>
+            <span>
+              {room.location
+                ? `${room.location.city}, ${room.location.country}`
+                : 'Location not specified'}
+            </span>
           </div>
           <div className="flex items-center">
             <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 rounded-full text-xs font-medium">
-              {room.category}
+              {room.type}
             </span>
           </div>
         </div>
@@ -539,29 +528,43 @@ const ViewRoom = () => {
           <div className="col-span-2">
             {/* Image gallery */}
             <div className="relative rounded-xl overflow-hidden aspect-[16/9] mb-6 bg-gray-200 dark:bg-gray-700">
-              {/* Using placeholder image for now */}
-              <img
-                src={logo_black}
-                alt={`${room.name} - Image ${currentImageIndex + 1}`}
-                className="w-full h-full object-cover"
-              />
+              {room.images && room.images.length > 0 ? (
+                <img
+                  src={room.images[currentImageIndex]}
+                  alt={`${room.title} - Image ${currentImageIndex + 1}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = placeholder;
+                  }}
+                />
+              ) : (
+                <img
+                  src={placeholder}
+                  alt="No image available"
+                  className="w-full h-full object-cover"
+                />
+              )}
 
-              {/* Image navigation */}
-              <button
-                onClick={prevImage}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/70 dark:bg-black/50 flex items-center justify-center hover:bg-white dark:hover:bg-black/70 transition">
-                &#10094;
-              </button>
-              <button
-                onClick={nextImage}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/70 dark:bg-black/50 flex items-center justify-center hover:bg-white dark:hover:bg-black/70 transition">
-                &#10095;
-              </button>
+              {/* Image navigation - only show if multiple images */}
+              {room.images && room.images.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/70 dark:bg-black/50 flex items-center justify-center hover:bg-white dark:hover:bg-black/70 transition">
+                    &#10094;
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/70 dark:bg-black/50 flex items-center justify-center hover:bg-white dark:hover:bg-black/70 transition">
+                    &#10095;
+                  </button>
 
-              {/* Image counter */}
-              <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                {currentImageIndex + 1} / {room.images.length}
-              </div>
+                  {/* Image counter */}
+                  <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                    {currentImageIndex + 1} / {room.images.length}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Tabs for Details and Policies */}
@@ -596,56 +599,39 @@ const ViewRoom = () => {
                   <h2 className="text-xl font-semibold mb-3">
                     About this space
                   </h2>
-                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                    {room.description}
-                  </p>
-                </div>
-
-                {/* Room features */}
-                <div className="mb-8">
-                  <h2 className="text-xl font-semibold mb-4">Features</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                      <FiUsers className="text-blue-500 text-xl" />
-                      <div>
-                        <div className="font-medium">Capacity</div>
-                        <div className="text-gray-600 dark:text-gray-400">
-                          {room.capacity}{' '}
-                          {room.capacity > 1 ? 'persons' : 'person'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                      <FiClock className="text-blue-500 text-xl" />
-                      <div>
-                        <div className="font-medium">Booking Unit</div>
-                        <div className="text-gray-600 dark:text-gray-400">
-                          {room.category === 'Room Stay'
-                            ? 'Per Night'
-                            : room.category === 'Conference Room'
-                            ? 'Per Day'
-                            : 'Per Event'}
-                        </div>
-                      </div>
-                    </div>
+                  <div className="text-gray-700 dark:text-gray-300">
+                    <p>{room.description}</p>
                   </div>
                 </div>
+
+                {/* Room capacity */}
+                {room.capacity && (
+                  <div className="mb-8">
+                    <h2 className="text-xl font-semibold mb-3">Capacity</h2>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-gray-700 dark:text-gray-300">
+                        <span className="font-medium">Max guests:</span>{' '}
+                        {room.capacity.maxGuests} people
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Amenities */}
-                <div className="mb-8">
-                  <h2 className="text-xl font-semibold mb-4">Amenities</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {room.amenities.map((amenity: string, index: number) => (
-                      <div key={index} className="flex items-center">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                        <span className="text-gray-700 dark:text-gray-300">
+                {room.amenities && room.amenities.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-xl font-semibold mb-3">Amenities</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {room.amenities.map((amenity: string, index: number) => (
+                        <div
+                          key={index}
+                          className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-gray-700 dark:text-gray-300">
                           {amenity}
-                        </span>
-                      </div>
-                    ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             ) : (
               <div className="mb-8">
@@ -655,42 +641,43 @@ const ViewRoom = () => {
             )}
 
             {/* Host section */}
-            {host && (
+            {room.host && (
               <div className="mt-8 border-t pt-8">
                 <h3 className="text-xl font-semibold mb-4">
-                  Hosted by {host.name}
+                  Hosted by {`${room.host.firstName} ${room.host.lastName}`}
                 </h3>
                 <div className="flex items-start gap-4">
-                  <Link to={`/hosts/${host.id}`} className="flex-shrink-0">
-                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-md">
-                      <img
-                        src={Openspace}
-                        alt={host.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            'https://via.placeholder.com/100x100?text=Host';
-                        }}
-                      />
+                  <Link
+                    to={`/hosts/${room.host._id}`}
+                    className="flex-shrink-0">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                      {room.host.profileImage ? (
+                        <img
+                          src={room.host.profileImage}
+                          alt={`${room.host.firstName} ${room.host.lastName}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = placeholder;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-500 text-xl font-bold">
+                          {room.host.firstName.charAt(0)}
+                          {room.host.lastName.charAt(0)}
+                        </div>
+                      )}
                     </div>
                   </Link>
                   <div>
+                    <p className="text-gray-700 dark:text-gray-300 mb-2">
+                      {room.host.hostInfo?.description ||
+                        'No host description available'}
+                    </p>
                     <Link
-                      to={`/hosts/${host.id}`}
-                      className="text-blue-500 hover:text-blue-700 font-medium">
+                      to={`/hosts/${room.host._id}`}
+                      className="text-blue-600 dark:text-blue-400 hover:underline">
                       View host profile
                     </Link>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                      Host since {host.dateJoined}
-                    </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium px-2 py-0.5 rounded-full">
-                        {host.responseRate}% Response Rate
-                      </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {host.responseTime}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -706,12 +693,13 @@ const ViewRoom = () => {
               {/* Price display */}
               <div className="flex items-baseline mb-6">
                 <span className="text-2xl font-bold">
-                  ₱{room.price.toLocaleString()}
+                  {room.price?.currency === 'PHP' ? '₱' : '$'}
+                  {room.price?.basePrice.toLocaleString()}
                 </span>
                 <span className="text-gray-600 dark:text-gray-400 ml-1">
-                  {room.category === 'Room Stay'
+                  {room.type === 'Room Stay'
                     ? '/night'
-                    : room.category === 'Conference Room'
+                    : room.type === 'Conference Room'
                     ? '/day'
                     : '/event'}
                 </span>
@@ -867,35 +855,30 @@ const ViewRoom = () => {
                   <div className="border-t border-gray-200 dark:border-gray-700 my-3 pt-3">
                     <div className="flex justify-between mb-2">
                       <span className="text-gray-600 dark:text-gray-400">
-                        {room.category === 'Room Stay' ? (
-                          <>
-                            ₱{room.price.toLocaleString()} ×{' '}
-                            {bookingDetails.numberOfDays}{' '}
-                            {bookingDetails.numberOfDays > 1
-                              ? 'nights'
-                              : 'night'}
-                          </>
-                        ) : room.category === 'Conference Room' ? (
-                          <>
-                            ₱{room.price.toLocaleString()} ×{' '}
-                            {bookingDetails.numberOfDays}{' '}
-                            {bookingDetails.numberOfDays > 1 ? 'days' : 'day'}
-                          </>
-                        ) : (
-                          <>Base rate</>
-                        )}
+                        {room.type === 'Events Place'
+                          ? 'Venue fee'
+                          : 'Subtotal'}
                       </span>
-                      <span>₱{bookingDetails.subtotal.toLocaleString()}</span>
+                      <span>
+                        {room.price?.currency === 'PHP' ? '₱' : '$'}
+                        {bookingDetails.subtotal.toLocaleString()}
+                      </span>
                     </div>
                     <div className="flex justify-between mb-2">
                       <span className="text-gray-600 dark:text-gray-400">
                         Service fee
                       </span>
-                      <span>₱{bookingDetails.serviceFee.toLocaleString()}</span>
+                      <span>
+                        {room.price?.currency === 'PHP' ? '₱' : '$'}
+                        {bookingDetails.serviceFee.toLocaleString()}
+                      </span>
                     </div>
                     <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
                       <span>Total</span>
-                      <span>₱{bookingDetails.total.toLocaleString()}</span>
+                      <span>
+                        {room.price?.currency === 'PHP' ? '₱' : '$'}
+                        {bookingDetails.total.toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 </div>

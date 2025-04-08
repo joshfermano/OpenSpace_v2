@@ -1,43 +1,90 @@
 import { FC } from 'react';
 import { Link } from 'react-router-dom';
-import logo_black from '../../assets/logo_black.jpg';
 import { FiMapPin, FiUsers } from 'react-icons/fi';
 import { BsStars } from 'react-icons/bs';
-import { getHostById } from '../../config/rooms';
-import Openspace from '../../assets/logo_white.jpg';
+import placeholder from '../../assets/logo_black.jpg';
+
+interface RoomImage {
+  _id: string;
+  url: string;
+}
+
+interface Host {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  profileImage?: string;
+}
+
+interface Price {
+  basePrice: number;
+  currency: string;
+}
+
+interface Capacity {
+  maxGuests: number;
+}
+
+interface Location {
+  address: string;
+  city: string;
+  country: string;
+}
 
 interface Room {
-  id: number;
-  name: string;
-  location: string;
-  category: string;
-  price: number;
+  _id: string;
+  title: string;
   description: string;
+  type: string;
+  price: Price;
+  location: Location;
+  capacity: Capacity;
   amenities: string[];
-  capacity: number;
   images: string[];
-  hostId: number;
+  host: Host;
 }
 
 const RoomCard: FC<{ room: Room }> = ({ room }) => {
-  const host = getHostById(room.hostId);
+  // Get the first image or use placeholder
+  const mainImage =
+    room.images && room.images.length > 0 ? room.images[0] : placeholder;
+
+  // Format location display
+  const locationDisplay = room.location
+    ? `${room.location.city}, ${room.location.country}`
+    : 'Location not specified';
+
+  // Format host name
+  const hostName = room.host
+    ? `${room.host.firstName} ${room.host.lastName}`
+    : 'Unknown Host';
+
+  // Format price based on room type
+  const priceLabel =
+    room.type === 'Events Place'
+      ? '/event'
+      : room.type === 'Conference Room'
+      ? '/day'
+      : '/night';
 
   return (
     <Link
-      to={`/rooms/${room.id}`}
+      to={`/rooms/${room._id}`}
       className="group flex flex-col bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300">
       {/* Image container */}
       <div className="relative overflow-hidden aspect-[4/3]">
-        {/* Placeholder image */}
         <img
-          src={logo_black}
-          alt={room.name}
+          src={mainImage}
+          alt={room.title}
           className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = placeholder;
+          }}
         />
 
         {/* Category badge */}
         <div className="absolute top-3 right-3 bg-blue-500 text-white text-xs font-medium px-2 py-1 rounded-full">
-          {room.category}
+          {room.type}
         </div>
       </div>
 
@@ -46,12 +93,12 @@ const RoomCard: FC<{ room: Room }> = ({ room }) => {
         {/* Location */}
         <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm mb-1">
           <FiMapPin className="mr-1" size={14} />
-          <span>{room.location}</span>
+          <span>{locationDisplay}</span>
         </div>
 
         {/* Name */}
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 line-clamp-1">
-          {room.name}
+          {room.title}
         </h3>
 
         {/* Description */}
@@ -59,24 +106,23 @@ const RoomCard: FC<{ room: Room }> = ({ room }) => {
           {room.description}
         </p>
 
-        {/* Host info - added as a clickable element */}
-        {host && (
+        {/* Host info */}
+        {room.host && (
           <Link
-            to={`/hosts/${host.id}`}
+            to={`/hosts/${room.host._id}`}
             className="flex items-center mt-auto mb-3 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
             onClick={(e) => e.stopPropagation()}>
             <div className="w-6 h-6 rounded-full overflow-hidden mr-2 border border-gray-200">
               <img
-                src={Openspace}
-                alt={host.name}
+                src={room.host.profileImage}
+                alt={hostName}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://via.placeholder.com/40x40?text=H';
+                  (e.target as HTMLImageElement).src = placeholder;
                 }}
               />
             </div>
-            <span>Hosted by {host.name}</span>
+            <span>Hosted by {hostName}</span>
           </Link>
         )}
 
@@ -85,7 +131,8 @@ const RoomCard: FC<{ room: Room }> = ({ room }) => {
           <div className="flex items-center">
             <FiUsers className="mr-1" size={14} />
             <span>
-              {room.capacity} {room.capacity > 1 ? 'guests' : 'guest'}
+              {room.capacity.maxGuests}{' '}
+              {room.capacity.maxGuests > 1 ? 'guests' : 'guest'}
             </span>
           </div>
 
@@ -98,13 +145,10 @@ const RoomCard: FC<{ room: Room }> = ({ room }) => {
         {/* Price */}
         <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
           <div className="font-semibold text-gray-900 dark:text-white">
-            ₱{room.price.toLocaleString()}
+            {room.price.currency === 'PHP' ? '₱' : '$'}
+            {room.price.basePrice.toLocaleString()}
             <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
-              {room.category === 'Events Place'
-                ? '/event'
-                : room.category === 'Conference Room'
-                ? '/day'
-                : '/night'}
+              {priceLabel}
             </span>
           </div>
 
@@ -122,7 +166,7 @@ const RoomCards: FC<{ rooms: Room[] }> = ({ rooms }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {rooms.map((room) => (
-        <RoomCard key={room.id} room={room} />
+        <RoomCard key={room._id} room={room} />
       ))}
     </div>
   );

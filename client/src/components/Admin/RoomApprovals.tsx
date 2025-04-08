@@ -6,20 +6,33 @@ import {
   FiUser,
   FiHome,
 } from 'react-icons/fi';
+import { API_URL } from '../../services/core';
 
 interface Room {
-  id: string;
-  name: string;
-  location: string;
-  category: string;
-  price: number;
-  capacity: number;
+  _id: string; // Changed from id to _id to match the server response
+  title: string; // Changed from name to title to match the server response
+  location: {
+    city: string;
+    state: string;
+    country: string;
+  };
+  type: string; // Changed from category
+  price: {
+    basePrice: number;
+  };
+  capacity: {
+    maxGuests: number;
+  };
   description: string;
   amenities: string[];
   images: string[];
-  hostId: string;
-  hostName: string;
-  hostImage: string | null; // Make hostImage nullable
+  host: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profileImage?: string;
+  };
   createdAt: string;
   status: string;
 }
@@ -39,6 +52,34 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
   onRejectRoom,
   onImageError,
 }) => {
+  // Format image URL properly
+  const getImageUrl = (imagePath: string) => {
+    if (!imagePath) return '';
+
+    // If the image path already starts with http:// or https:// or data:, return as is
+    if (
+      imagePath.startsWith('http://') ||
+      imagePath.startsWith('https://') ||
+      imagePath.startsWith('data:')
+    ) {
+      return imagePath;
+    }
+
+    // If path starts with a slash, ensure we don't double-slash
+    const normalizedPath = imagePath.startsWith('/')
+      ? imagePath
+      : `/${imagePath}`;
+
+    return `${API_URL}${normalizedPath}`;
+  };
+
+  const formatLocation = (location: any) => {
+    if (!location) return 'Unknown location';
+    return `${location.city || ''}, ${location.state || ''}, ${
+      location.country || ''
+    }`.replace(/^, |, $/, '');
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -63,10 +104,10 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {rooms.length > 0 ? (
+            {rooms && rooms.length > 0 ? (
               rooms.map((room) => (
                 <tr
-                  key={room.id}
+                  key={room._id}
                   className="hover:bg-gray-300 dark:hover:bg-gray-900 transition-all duration-300">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -74,8 +115,8 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
                         {room.images && room.images.length > 0 ? (
                           <img
                             className="h-16 w-16 rounded-lg object-cover"
-                            src={room.images[0]}
-                            alt={room.name}
+                            src={getImageUrl(room.images[0])}
+                            alt={room.title}
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
                               const parent = e.currentTarget.parentElement;
@@ -97,13 +138,19 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {room.name}
+                          {room.title}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {room.location}
+                          {formatLocation(room.location)}
                         </div>
                         <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                          {room.category}
+                          {room.type === 'conference'
+                            ? 'Conference Room'
+                            : room.type === 'event'
+                            ? 'Events Place'
+                            : room.type === 'stay'
+                            ? 'Room Stay'
+                            : room.type}
                         </div>
                       </div>
                     </div>
@@ -111,17 +158,11 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       <div className="h-8 w-8 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        {room.hostImage ? (
+                        {room.host && room.host.profileImage ? (
                           <img
                             className="h-8 w-8 rounded-full object-cover"
-                            src={
-                              room.hostImage.startsWith('http')
-                                ? room.hostImage
-                                : `${import.meta.env.VITE_API_URL || ''}${
-                                    room.hostImage
-                                  }`
-                            }
-                            alt={room.hostName}
+                            src={getImageUrl(room.host.profileImage)}
+                            alt={`${room.host.firstName} ${room.host.lastName}`}
                             onError={onImageError}
                           />
                         ) : (
@@ -131,13 +172,18 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
                         )}
                       </div>
                       <span className="ml-2 text-sm text-gray-900 dark:text-white">
-                        {room.hostName}
+                        {room.host
+                          ? `${room.host.firstName} ${room.host.lastName}`
+                          : 'Unknown'}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 dark:text-white">
-                      ₱{Number(room.price).toLocaleString()}
+                      ₱
+                      {room.price?.basePrice
+                        ? Number(room.price.basePrice).toLocaleString()
+                        : 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -160,13 +206,13 @@ const RoomApprovals: React.FC<RoomApprovalsProps> = ({
                       {room.status === 'pending' && (
                         <>
                           <button
-                            onClick={() => onApproveRoom(room.id)}
+                            onClick={() => onApproveRoom(room._id)}
                             className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300"
                             title="Approve">
                             <FiCheckCircle size={18} />
                           </button>
                           <button
-                            onClick={() => onRejectRoom(room.id)}
+                            onClick={() => onRejectRoom(room._id)}
                             className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
                             title="Reject">
                             <FiXCircle size={18} />

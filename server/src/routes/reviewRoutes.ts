@@ -1,21 +1,35 @@
 import express from 'express';
-import * as earningsController from '../controllers/earningsController';
-import { protect, adminOnly } from '../middlewares/authMiddleware';
+import * as reviewController from '../controllers/reviewController';
+import { protect } from '../middlewares/authMiddleware';
+import upload from '../config/multer';
 
 const router = express.Router();
 
+// Public routes
+router.get('/room/:roomId', reviewController.getRoomReviews);
+
+// Protected routes
 router.use(protect);
 
-// Host earnings routes
-router.get('/', earningsController.getHostEarnings);
-router.get('/summary', earningsController.getEarningsSummary);
-router.get('/date-range', earningsController.getEarningsByDateRange);
-router.get('/statement/:year', earningsController.generateEarningsStatement);
-router.get('/booking/:bookingId', earningsController.getBookingEarnings);
+// Check if user can review a room
+router.get('/eligibility/:roomId', reviewController.checkReviewEligibility);
 
-// Admin routes
-router.use('/admin', adminOnly);
-router.post('/admin/process-payout', earningsController.processHostPayout);
-router.patch('/admin/update-status', earningsController.updateEarningsStatus);
+// Create, update, delete reviews
+router.post('/', upload.array('photos', 3), reviewController.createReview);
+router.put(
+  '/:reviewId',
+  upload.array('photos', 3),
+  reviewController.updateReview
+);
+router.delete('/:reviewId', reviewController.deleteReview);
+
+// Get user's own reviews
+router.get('/user', reviewController.getUserReviews);
+
+// Get reviews for host's properties
+router.get('/host', reviewController.getHostReviews);
+
+// Get a single review by ID
+router.get('/:reviewId', reviewController.getReviewById);
 
 export default router;

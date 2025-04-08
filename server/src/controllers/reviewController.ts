@@ -25,8 +25,7 @@ export const createReview = async (
 ): Promise<void> => {
   try {
     const userId = req.user.id;
-    const { roomId, bookingId, rating, comment, photos, isAnonymous } =
-      req.body;
+    const { roomId, bookingId, rating, comment, isAnonymous } = req.body;
 
     // Validate required fields
     if (!roomId || !bookingId || !rating || !comment) {
@@ -38,7 +37,7 @@ export const createReview = async (
     }
 
     // Check if the rating is valid (1-5)
-    if (rating < 1 || rating > 5) {
+    if (parseInt(rating) < 1 || parseInt(rating) > 5) {
       res.status(400).json({
         success: false,
         message: 'Rating must be between 1 and 5',
@@ -91,19 +90,29 @@ export const createReview = async (
       return;
     }
 
+    // Handle file uploads
+    const photoFiles = req.files as Express.Multer.File[];
+    let photosPaths: string[] = [];
+
+    if (photoFiles && photoFiles.length > 0) {
+      photosPaths = photoFiles.map(
+        (file) => `uploads/reviews/${file.filename}`
+      );
+    }
+
     // Create the review
     const review = await Review.create({
       room: roomId,
       user: userId,
       booking: bookingId,
-      rating,
+      rating: parseInt(rating),
       comment,
-      photos: photos || [],
-      isAnonymous: isAnonymous || false,
+      photos: photosPaths,
+      isAnonymous: isAnonymous === 'true',
     });
 
     // Update the booking with the review ID
-    booking.reviewId = review._id as mongoose.Types.ObjectId;
+    booking.reviewId = review._id as unknown as mongoose.Types.ObjectId;
     await booking.save();
 
     // Update room rating
@@ -118,6 +127,64 @@ export const createReview = async (
     res.status(500).json({
       success: false,
       message: 'Error creating review',
+      error: error.message,
+    });
+  }
+};
+
+export const checkReviewEligibility = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user.id;
+    const { roomId } = req.params;
+
+    // Check if room exists
+    const room = await Room.findById(roomId);
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        message: 'Room not found',
+      });
+      return;
+    }
+
+    // Check if user has completed a booking for this room
+    const completedBooking = await Booking.findOne({
+      user: userId,
+      room: roomId,
+      bookingStatus: 'completed',
+    });
+
+    if (!completedBooking) {
+      res.status(200).json({
+        success: true,
+        canReview: false,
+        message: 'You must complete a stay before reviewing',
+      });
+      return;
+    }
+
+    // Check if user already has a review for this booking
+    const existingReview = await Review.findOne({
+      user: userId,
+      room: roomId,
+      booking: completedBooking._id,
+    });
+
+    res.status(200).json({
+      success: true,
+      canReview: !existingReview,
+      message: existingReview
+        ? 'You have already reviewed this stay'
+        : 'You can review this room',
+      bookingId: completedBooking._id,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error checking review eligibility',
       error: error.message,
     });
   }
@@ -191,6 +258,7 @@ export const getRoomReviews = async (
         const anonymousReview =
           review.toObject() as unknown as ReviewWithAnonymousUser;
         anonymousReview.user = {
+          _id: anonymousReview.user._id, // Keep the ID for permission checks
           firstName: 'Anonymous',
           lastName: 'User',
           profileImage: null,
@@ -202,12 +270,22 @@ export const getRoomReviews = async (
 
     const total = await Review.countDocuments({ room: roomId });
 
+    // Calculate average rating
+    const allReviews = await Review.find({ room: roomId });
+    const totalRating = allReviews.reduce(
+      (sum, review) => sum + review.rating,
+      0
+    );
+    const averageRating =
+      allReviews.length > 0 ? totalRating / allReviews.length : 0;
+
     res.status(200).json({
       success: true,
-      count: processedReviews.length,
+      count: total,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       data: processedReviews,
+      averageRating,
     });
   } catch (error: any) {
     res.status(500).json({

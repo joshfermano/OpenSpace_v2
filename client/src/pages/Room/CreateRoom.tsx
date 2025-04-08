@@ -1,7 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiMapPin, FiUsers, FiTag, FiTrash2, FiPlus } from 'react-icons/fi';
 import { FaPesoSign } from 'react-icons/fa6';
+import { roomApi } from '../../services/roomApi';
+import { useAuth } from '../../contexts/AuthContext';
+import { API_URL } from '../../services/core';
 
 // Common amenities options
 const AMENITIES_OPTIONS = [
@@ -21,25 +24,60 @@ const AMENITIES_OPTIONS = [
 ];
 
 // Room categories
-const CATEGORIES = ['Conference Room', 'Event Space', 'Room Stays'];
+const CATEGORIES = ['Conference Room', 'Events Place', 'Room Stay'];
 
 const CreateRoom = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isAuthenticated, user } = useAuth();
+
+  // Check if user can create rooms (must be a host)
+  useEffect(() => {
+    if (isAuthenticated && user && user.role !== 'host') {
+      navigate('/become-host');
+    } else if (!isAuthenticated) {
+      navigate('/auth/login?redirect=/rooms/create');
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    category: '',
-    price: '',
+    title: '',
     description: '',
-    capacity: '',
+    location: {
+      address: '',
+      city: '',
+      state: '',
+      country: 'Philippines',
+      zipCode: '',
+    },
+    type: '',
+    price: {
+      basePrice: '',
+      cleaningFee: '0',
+      serviceFee: '0',
+    },
+    capacity: {
+      maxGuests: '',
+    },
     amenities: [] as string[],
-    images: [] as File[],
+    houseRules: {
+      checkInTime: '14:00',
+      checkOutTime: '12:00',
+      instantBooking: false,
+      cancellationPolicy: 'Standard 48-hour cancellation policy',
+    },
+    availability: {
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0],
+      isAlwaysAvailable: true,
+    },
   });
 
-  // Image preview URLs
+  // Image files state
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
   // Error state
@@ -47,24 +85,76 @@ const CreateRoom = () => {
 
   // Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState<boolean | null>(null);
+  const [submitMessage, setSubmitMessage] = useState<string>('');
 
-  // Handle text input changes
   const handleInputChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData((prevData) => {
+        // Safely access the parent property
+        const parentObj = prevData[parent as keyof typeof prevData];
+
+        // Make sure it's an object before spreading
+        if (
+          parentObj &&
+          typeof parentObj === 'object' &&
+          !Array.isArray(parentObj)
+        ) {
+          return {
+            ...prevData,
+            [parent]: {
+              ...parentObj,
+              [child]: value,
+            },
+          };
+        }
+
+        // If it's not a valid object, return unchanged state
+        return prevData;
+      });
+    } else {
+      setFormData((prevData) => ({
+        ...prevData,
+        [name]: value,
+      }));
+    }
 
     // Clear error when field is edited
     if (errors[name]) {
       setErrors({
         ...errors,
         [name]: '',
+      });
+    }
+  };
+
+  // For handling type selection (mapping to backend types)
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const categoryToType: Record<string, string> = {
+      'Conference Room': 'conference',
+      'Events Place': 'event',
+      'Room Stay': 'stay',
+    };
+
+    const category = e.target.value;
+    const type = categoryToType[category] || '';
+
+    setFormData({
+      ...formData,
+      type: type,
+    });
+
+    if (errors.type) {
+      setErrors({
+        ...errors,
+        type: '',
       });
     }
   };
@@ -82,6 +172,14 @@ const CreateRoom = () => {
         amenities: [...formData.amenities, amenity],
       });
     }
+
+    // Clear amenities error if it exists and we now have amenities
+    if (errors.amenities && formData.amenities.length > 0) {
+      setErrors({
+        ...errors,
+        amenities: '',
+      });
+    }
   };
 
   // Handle image upload
@@ -90,20 +188,36 @@ const CreateRoom = () => {
     if (!files) return;
 
     const newFiles = Array.from(files);
-    const updatedImages = [...formData.images, ...newFiles];
 
-    // Generate preview URLs
-    const newPreviewUrls = newFiles.map((file) => URL.createObjectURL(file));
+    // Check file size and type
+    const validFiles = newFiles.filter((file) => {
+      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB limit
+      const isValidType = file.type.startsWith('image/');
 
-    setFormData({
-      ...formData,
-      images: updatedImages,
+      if (!isValidSize) {
+        setErrors({
+          ...errors,
+          images: 'One or more images exceed the 10MB limit',
+        });
+      } else if (!isValidType) {
+        setErrors({
+          ...errors,
+          images: 'Only image files are allowed',
+        });
+      }
+
+      return isValidSize && isValidType;
     });
 
+    const updatedFiles = [...imageFiles, ...validFiles];
+    setImageFiles(updatedFiles);
+
+    // Generate preview URLs
+    const newPreviewUrls = validFiles.map((file) => URL.createObjectURL(file));
     setImagePreviewUrls([...imagePreviewUrls, ...newPreviewUrls]);
 
-    // Clear error if it exists
-    if (errors.images) {
+    // Clear error if it exists and we now have images
+    if (errors.images && updatedFiles.length > 0) {
       setErrors({
         ...errors,
         images: '',
@@ -123,46 +237,114 @@ const CreateRoom = () => {
     // Revoke the URL to prevent memory leaks
     URL.revokeObjectURL(imagePreviewUrls[index]);
 
-    const updatedImages = [...formData.images];
-    updatedImages.splice(index, 1);
+    const updatedFiles = [...imageFiles];
+    updatedFiles.splice(index, 1);
 
     const updatedPreviewUrls = [...imagePreviewUrls];
     updatedPreviewUrls.splice(index, 1);
 
-    setFormData({
-      ...formData,
-      images: updatedImages,
-    });
-
+    setImageFiles(updatedFiles);
     setImagePreviewUrls(updatedPreviewUrls);
+
+    // Re-add error if no images left
+    if (updatedFiles.length === 0) {
+      setErrors({
+        ...errors,
+        images: 'Upload at least one image',
+      });
+    }
+  };
+
+  // For numeric inputs only
+  const handleNumericInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (value === '' || /^\d+$/.test(value)) {
+      if (name.includes('.')) {
+        const [parent, child] = name.split('.');
+        setFormData((prevData) => {
+          // Safely access the parent property
+          const parentObj = prevData[parent as keyof typeof prevData];
+
+          // Make sure it's an object before spreading
+          if (
+            parentObj &&
+            typeof parentObj === 'object' &&
+            !Array.isArray(parentObj)
+          ) {
+            return {
+              ...prevData,
+              [parent]: {
+                ...parentObj,
+                [child]: value,
+              },
+            };
+          }
+
+          return prevData;
+        });
+      } else {
+        setFormData({
+          ...formData,
+          [name]: value,
+        });
+      }
+
+      if (errors[name]) {
+        setErrors({
+          ...errors,
+          [name]: '',
+        });
+      }
+    }
   };
 
   // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.location.trim()) newErrors.location = 'Location is required';
-    if (!formData.category) newErrors.category = 'Category is required';
-    if (!formData.price.trim()) newErrors.price = 'Price is required';
-    else if (isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
-      newErrors.price = 'Price must be a positive number';
-    }
-
+    // Required fields validation
+    if (!formData.title.trim()) newErrors['title'] = 'Name is required';
+    if (!formData.type) newErrors['type'] = 'Category is required';
     if (!formData.description.trim())
-      newErrors.description = 'Description is required';
-    if (!formData.capacity.trim()) newErrors.capacity = 'Capacity is required';
+      newErrors['description'] = 'Description is required';
+
+    // Location validation
+    if (!formData.location.address.trim())
+      newErrors['location.address'] = 'Address is required';
+    if (!formData.location.city.trim())
+      newErrors['location.city'] = 'City is required';
+    if (!formData.location.state.trim())
+      newErrors['location.state'] = 'State/Province is required';
+    if (!formData.location.zipCode.trim())
+      newErrors['location.zipCode'] = 'Zip code is required';
+
+    // Price validation
+    if (!formData.price.basePrice.trim())
+      newErrors['price.basePrice'] = 'Price is required';
     else if (
-      isNaN(Number(formData.capacity)) ||
-      Number(formData.capacity) <= 0
+      isNaN(Number(formData.price.basePrice)) ||
+      Number(formData.price.basePrice) <= 0
     ) {
-      newErrors.capacity = 'Capacity must be a positive number';
+      newErrors['price.basePrice'] = 'Price must be a positive number';
     }
 
+    // Capacity validation
+    if (!formData.capacity.maxGuests.trim())
+      newErrors['capacity.maxGuests'] = 'Capacity is required';
+    else if (
+      isNaN(Number(formData.capacity.maxGuests)) ||
+      Number(formData.capacity.maxGuests) <= 0
+    ) {
+      newErrors['capacity.maxGuests'] = 'Capacity must be a positive number';
+    }
+
+    // Amenities validation
     if (formData.amenities.length === 0)
-      newErrors.amenities = 'Select at least one amenity';
-    if (formData.images.length === 0)
-      newErrors.images = 'Upload at least one image';
+      newErrors['amenities'] = 'Select at least one amenity';
+
+    // Images validation
+    if (imageFiles.length === 0)
+      newErrors['images'] = 'Upload at least one image';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -175,32 +357,63 @@ const CreateRoom = () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+    setSubmitSuccess(null);
+    setSubmitMessage('');
 
     try {
-      // Here you would normally send the data to your API
-      console.log('Form submitted with data:', formData);
+      // First, create the room
+      const roomResponse = await roomApi.createRoom(formData);
 
-      // Mock successful submission
+      if (!roomResponse.success) {
+        throw new Error(roomResponse.message || 'Failed to create room');
+      }
+
+      const roomId = roomResponse.data._id;
+
+      // Then, if we have images, upload them
+      if (imageFiles.length > 0) {
+        const formData = new FormData();
+        imageFiles.forEach((file) => {
+          formData.append('images', file);
+        });
+
+        // Use fetch directly for file uploads with full URL
+        const imageResponse = await fetch(
+          `${API_URL}/api/rooms/${roomId}/images`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            body: formData,
+          }
+        );
+
+        if (!imageResponse.ok) {
+          const errorData = await imageResponse.json();
+          throw new Error(errorData.message || 'Failed to upload images');
+        }
+      }
+
+      setSubmitSuccess(true);
+      setSubmitMessage(
+        'Space created successfully! Redirecting to your dashboard...'
+      );
+
+      // Redirect after short delay
       setTimeout(() => {
-        alert('Room created successfully!');
-        navigate('/dashboard'); // Redirect to dashboard or room list
-      }, 1500);
-    } catch (error) {
+        navigate('/dashboard/host/listings');
+      }, 2000);
+    } catch (error: any) {
       console.error('Error creating room:', error);
+      setSubmitSuccess(false);
+      setSubmitMessage(
+        error.message || 'Failed to create space. Please try again.'
+      );
       setErrors({
         ...errors,
-        form: 'Failed to create room. Please try again.',
+        form: error.message || 'Failed to create space. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // For numeric inputs only
-  const handleNumericInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-    if (value === '' || /^\d+$/.test(value)) {
-      handleInputChange(e);
     }
   };
 
@@ -211,9 +424,15 @@ const CreateRoom = () => {
           Create New Space
         </h1>
 
-        {errors.form && (
+        {submitSuccess === false && (
           <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg mb-6">
-            {errors.form}
+            {submitMessage || errors.form}
+          </div>
+        )}
+
+        {submitSuccess === true && (
+          <div className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-4 rounded-lg mb-6">
+            {submitMessage}
           </div>
         )}
 
@@ -228,19 +447,19 @@ const CreateRoom = () => {
               {/* Name */}
               <div>
                 <label
-                  htmlFor="name"
+                  htmlFor="title"
                   className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Space Name
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
+                    id="title"
+                    name="title"
+                    value={formData.title}
                     onChange={handleInputChange}
                     className={`w-full px-4 py-2 rounded-lg border ${
-                      errors.name
+                      errors.title
                         ? 'border-red-500 dark:border-red-500'
                         : 'border-gray-300 dark:border-gray-700'
                     } 
@@ -248,42 +467,9 @@ const CreateRoom = () => {
                     placeholder="e.g., Creative Studio Space"
                   />
                 </div>
-                {errors.name && (
+                {errors.title && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.name}
-                  </p>
-                )}
-              </div>
-
-              {/* Location */}
-              <div>
-                <label
-                  htmlFor="location"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Location
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiMapPin className="text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    id="location"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
-                      errors.location
-                        ? 'border-red-500 dark:border-red-500'
-                        : 'border-gray-300 dark:border-gray-700'
-                    } 
-                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
-                    placeholder="e.g., Manila, Philippines"
-                  />
-                </div>
-                {errors.location && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.location}
+                    {errors.title}
                   </p>
                 )}
               </div>
@@ -302,10 +488,9 @@ const CreateRoom = () => {
                   <select
                     id="category"
                     name="category"
-                    value={formData.category}
-                    onChange={handleInputChange}
+                    onChange={handleTypeChange}
                     className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
-                      errors.category
+                      errors.type
                         ? 'border-red-500 dark:border-red-500'
                         : 'border-gray-300 dark:border-gray-700'
                     } 
@@ -318,9 +503,126 @@ const CreateRoom = () => {
                     ))}
                   </select>
                 </div>
-                {errors.category && (
+                {errors.type && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.category}
+                    {errors.type}
+                  </p>
+                )}
+              </div>
+
+              {/* Address */}
+              <div>
+                <label
+                  htmlFor="location.address"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiMapPin className="text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="location.address"
+                    name="location.address"
+                    value={formData.location.address}
+                    onChange={handleInputChange}
+                    className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
+                      errors['location.address']
+                        ? 'border-red-500 dark:border-red-500'
+                        : 'border-gray-300 dark:border-gray-700'
+                    } 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                    placeholder="e.g., 123 Main Street"
+                  />
+                </div>
+                {errors['location.address'] && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors['location.address']}
+                  </p>
+                )}
+              </div>
+
+              {/* City */}
+              <div>
+                <label
+                  htmlFor="location.city"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  id="location.city"
+                  name="location.city"
+                  value={formData.location.city}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    errors['location.city']
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-700'
+                  } 
+                bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                  placeholder="e.g., Manila"
+                />
+                {errors['location.city'] && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors['location.city']}
+                  </p>
+                )}
+              </div>
+
+              {/* State */}
+              <div>
+                <label
+                  htmlFor="location.state"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  State/Province
+                </label>
+                <input
+                  type="text"
+                  id="location.state"
+                  name="location.state"
+                  value={formData.location.state}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    errors['location.state']
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-700'
+                  } 
+                bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                  placeholder="e.g., Metro Manila"
+                />
+                {errors['location.state'] && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors['location.state']}
+                  </p>
+                )}
+              </div>
+
+              {/* Zip Code */}
+              <div>
+                <label
+                  htmlFor="location.zipCode"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Postal/Zip Code
+                </label>
+                <input
+                  type="text"
+                  id="location.zipCode"
+                  name="location.zipCode"
+                  value={formData.location.zipCode}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    errors['location.zipCode']
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-700'
+                  } 
+                bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                  placeholder="e.g., 1000"
+                />
+                {errors['location.zipCode'] && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors['location.zipCode']}
                   </p>
                 )}
               </div>
@@ -328,7 +630,7 @@ const CreateRoom = () => {
               {/* Price */}
               <div>
                 <label
-                  htmlFor="price"
+                  htmlFor="price.basePrice"
                   className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Price (₱)
                 </label>
@@ -338,12 +640,12 @@ const CreateRoom = () => {
                   </div>
                   <input
                     type="text"
-                    id="price"
-                    name="price"
-                    value={formData.price}
+                    id="price.basePrice"
+                    name="price.basePrice"
+                    value={formData.price.basePrice}
                     onChange={handleNumericInput}
                     className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
-                      errors.price
+                      errors['price.basePrice']
                         ? 'border-red-500 dark:border-red-500'
                         : 'border-gray-300 dark:border-gray-700'
                     } 
@@ -351,9 +653,9 @@ const CreateRoom = () => {
                     placeholder="e.g., 5000"
                   />
                 </div>
-                {errors.price && (
+                {errors['price.basePrice'] && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.price}
+                    {errors['price.basePrice']}
                   </p>
                 )}
               </div>
@@ -361,7 +663,7 @@ const CreateRoom = () => {
               {/* Capacity */}
               <div>
                 <label
-                  htmlFor="capacity"
+                  htmlFor="capacity.maxGuests"
                   className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Capacity
                 </label>
@@ -371,12 +673,12 @@ const CreateRoom = () => {
                   </div>
                   <input
                     type="text"
-                    id="capacity"
-                    name="capacity"
-                    value={formData.capacity}
+                    id="capacity.maxGuests"
+                    name="capacity.maxGuests"
+                    value={formData.capacity.maxGuests}
                     onChange={handleNumericInput}
                     className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
-                      errors.capacity
+                      errors['capacity.maxGuests']
                         ? 'border-red-500 dark:border-red-500'
                         : 'border-gray-300 dark:border-gray-700'
                     } 
@@ -384,9 +686,9 @@ const CreateRoom = () => {
                     placeholder="e.g., 25"
                   />
                 </div>
-                {errors.capacity && (
+                {errors['capacity.maxGuests'] && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.capacity}
+                    {errors['capacity.maxGuests']}
                   </p>
                 )}
               </div>
@@ -520,6 +822,70 @@ const CreateRoom = () => {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* House Rules Section */}
+          <div className="bg-light dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold mb-4 text-gray-800 dark:text-light">
+              Booking Details
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Check-in Time */}
+              <div>
+                <label
+                  htmlFor="houseRules.checkInTime"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Check-in Time
+                </label>
+                <input
+                  type="time"
+                  id="houseRules.checkInTime"
+                  name="houseRules.checkInTime"
+                  value={formData.houseRules.checkInTime}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                />
+              </div>
+
+              {/* Check-out Time */}
+              <div>
+                <label
+                  htmlFor="houseRules.checkOutTime"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Check-out Time
+                </label>
+                <input
+                  type="time"
+                  id="houseRules.checkOutTime"
+                  name="houseRules.checkOutTime"
+                  value={formData.houseRules.checkOutTime}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                />
+              </div>
+
+              {/* Cancellation Policy */}
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="houseRules.cancellationPolicy"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Cancellation Policy
+                </label>
+                <textarea
+                  id="houseRules.cancellationPolicy"
+                  name="houseRules.cancellationPolicy"
+                  value={formData.houseRules.cancellationPolicy}
+                  onChange={handleInputChange}
+                  rows={2}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                  placeholder="Describe your cancellation policy..."
+                />
+              </div>
+            </div>
           </div>
 
           {/* Submit Buttons */}

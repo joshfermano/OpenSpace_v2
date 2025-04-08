@@ -44,7 +44,7 @@ const Login = () => {
         if (loggedInUser.role === 'admin') {
           navigate('/admin/dashboard');
         } else if (loggedInUser.role === 'host') {
-          navigate('/host/dashboard');
+          navigate('/dashboard');
         } else {
           navigate('/dashboard');
         }

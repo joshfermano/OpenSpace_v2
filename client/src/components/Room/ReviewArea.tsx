@@ -7,13 +7,16 @@ import {
   FaUserCircle,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
+import { reviewApi } from '../../services/reviewApi';
+import { API_URL } from '../../services/core';
 
 // Define the Review type
 interface Review {
   _id: string;
   user: {
     _id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     profileImage?: string;
   };
   rating: number;
@@ -21,12 +24,14 @@ interface Review {
   createdAt: string;
   isAnonymous: boolean;
   photos?: string[];
+  booking?: string;
 }
 
 interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomId: string;
+  bookingId?: string;
   reviewToEdit?: Review;
   onSubmitSuccess: () => void;
 }
@@ -41,6 +46,7 @@ const ReviewModal = ({
   isOpen,
   onClose,
   roomId,
+  bookingId,
   reviewToEdit,
   onSubmitSuccess,
 }: ReviewModalProps) => {
@@ -78,17 +84,22 @@ const ReviewModal = ({
     }
   };
 
-  // Update the handleSubmit function in ReviewModal:
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError('');
 
+    if (!bookingId && !reviewToEdit) {
+      setError('Missing booking information');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       // Create form data for file upload
       const formData = new FormData();
       formData.append('roomId', roomId);
+      if (bookingId) formData.append('bookingId', bookingId);
       formData.append('rating', rating.toString());
       formData.append('comment', comment);
       formData.append('isAnonymous', isAnonymous.toString());
@@ -97,32 +108,17 @@ const ReviewModal = ({
         formData.append('photos', photo);
       });
 
-      // API endpoint and method differs for new vs edit
-      const endpoint = reviewToEdit
-        ? `/api/reviews/${reviewToEdit._id}`
-        : '/api/reviews';
+      let response;
 
-      const method = reviewToEdit ? 'PUT' : 'POST';
-
-      const response = await fetch(endpoint, {
-        method,
-        body: formData,
-        // Don't set Content-Type header - it will be set automatically for FormData
-      });
-
-      // Check content type for non-JSON responses
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(
-          `API returned non-JSON response. Possible server error.`
-        );
+      // Use the reviewApi service instead of direct fetch
+      if (reviewToEdit) {
+        response = await reviewApi.updateReview(reviewToEdit._id, formData);
+      } else {
+        response = await reviewApi.createReview(formData);
       }
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Unknown error occurred' }));
-        throw new Error(errorData.message || 'Failed to submit review');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to submit review');
       }
 
       onSubmitSuccess();
@@ -265,7 +261,11 @@ const ReviewCard = ({
   onEdit: (review: Review) => void;
   onDelete: (reviewId: string) => void;
 }) => {
-  const displayName = review.isAnonymous ? 'Anonymous' : review.user.name;
+  // Create display name from firstName and lastName
+  const displayName = review.isAnonymous
+    ? 'Anonymous'
+    : `${review.user.firstName} ${review.user.lastName}`;
+
   const isCurrentUserReview =
     currentUserId && review.user._id === currentUserId;
 
@@ -275,15 +275,26 @@ const ReviewCard = ({
     day: 'numeric',
   });
 
+  // Get first letter for avatar
+  const nameInitial = review.isAnonymous
+    ? 'A'
+    : review.user.firstName.charAt(0).toUpperCase();
+
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
       <div className="flex justify-between">
         <div className="flex items-center">
           {review.isAnonymous ? (
             <FaUserCircle className="h-10 w-10 text-gray-400 dark:text-gray-600" />
+          ) : review.user.profileImage ? (
+            <img
+              src={`${API_URL}/${review.user.profileImage}`}
+              alt={nameInitial}
+              className="h-10 w-10 rounded-full object-cover"
+            />
           ) : (
             <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 font-medium">
-              {review.user.name.substring(0, 1).toUpperCase()}
+              {nameInitial}
             </div>
           )}
           <div className="ml-3">
@@ -322,7 +333,7 @@ const ReviewCard = ({
               key={index}
               className="flex-shrink-0 w-20 h-20 rounded-md overflow-hidden">
               <img
-                src={photo}
+                src={photo.startsWith('http') ? photo : `${API_URL}/${photo}`}
                 alt={`Review photo ${index + 1}`}
                 className="w-full h-full object-cover"
               />
@@ -365,6 +376,7 @@ const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
   const [averageRating, setAverageRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [userCanReview, setUserCanReview] = useState(false);
+  const [bookingId, setBookingId] = useState<string | undefined>(undefined);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
     null
   );
@@ -373,64 +385,44 @@ const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
   const fetchReviews = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/reviews/room/${roomId}`);
+      const response = await reviewApi.getRoomReviews(roomId);
 
-      // Check if response is JSON before trying to parse it
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`API returned non-JSON response: ${contentType}`);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch reviews');
       }
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: 'Unknown error occurred' }));
-        throw new Error(
-          errorData.message || `Server error: ${response.status}`
-        );
-      }
+      setReviews(response.data || []);
+      setAverageRating(response.averageRating || 0);
+      setReviewCount(response.count || 0);
 
-      const data = await response.json();
-      setReviews(data.reviews || []);
-      setAverageRating(data.averageRating || 0);
-      setReviewCount(data.totalReviews || 0);
-
-      // Check if user can review (has completed booking and hasn't reviewed)
+      // Check if user can review
       if (isAuthenticated && user) {
-        try {
-          const eligibilityResponse = await fetch(
-            `/api/reviews/eligibility/${roomId}`
-          );
-
-          // Check content type first
-          const eligibilityContentType =
-            eligibilityResponse.headers.get('content-type');
-          if (
-            !eligibilityContentType ||
-            !eligibilityContentType.includes('application/json')
-          ) {
-            console.error('Eligibility endpoint returned non-JSON response');
-            setUserCanReview(false);
-            return;
-          }
-
-          if (eligibilityResponse.ok) {
-            const eligibilityData = await eligibilityResponse.json();
-            setUserCanReview(eligibilityData.canReview || false);
-          } else {
-            console.error('Failed to check review eligibility');
-            setUserCanReview(false);
-          }
-        } catch (eligibilityErr) {
-          console.error('Error checking review eligibility:', eligibilityErr);
-          setUserCanReview(false);
-        }
+        checkEligibility();
       }
     } catch (err: any) {
       console.error('Error fetching reviews:', err);
       setError(err.message || 'Something went wrong');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Check if user can review this room
+  const checkEligibility = async () => {
+    try {
+      const eligibilityResponse = await reviewApi.checkReviewEligibility(
+        roomId
+      );
+
+      if (eligibilityResponse.success) {
+        setUserCanReview(eligibilityResponse.canReview || false);
+        setBookingId(eligibilityResponse.bookingId);
+      } else {
+        setUserCanReview(false);
+      }
+    } catch (err) {
+      console.error('Error checking review eligibility:', err);
+      setUserCanReview(false);
     }
   };
 
@@ -451,18 +443,10 @@ const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
   const handleDeleteReview = async (reviewId: string) => {
     if (showDeleteConfirm === reviewId) {
       try {
-        const response = await fetch(`/api/reviews/${reviewId}`, {
-          method: 'DELETE',
-        });
+        const response = await reviewApi.deleteReview(reviewId);
 
-        if (!response.ok) {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to delete review');
-          } else {
-            throw new Error(`Server error: ${response.status}`);
-          }
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to delete review');
         }
 
         // Refresh reviews after deletion
@@ -476,6 +460,7 @@ const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
       setShowDeleteConfirm(reviewId);
     }
   };
+
   const cancelDelete = () => {
     setShowDeleteConfirm(null);
   };
@@ -537,7 +522,7 @@ const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
             <div key={review._id}>
               <ReviewCard
                 review={review}
-                currentUserId={user?.id ? String(user.id) : null}
+                currentUserId={user?._id ? String(user._id) : null}
                 onEdit={handleEditReview}
                 onDelete={handleDeleteReview}
               />
@@ -573,6 +558,7 @@ const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         roomId={roomId}
+        bookingId={bookingId}
         reviewToEdit={reviewToEdit}
         onSubmitSuccess={fetchReviews}
       />

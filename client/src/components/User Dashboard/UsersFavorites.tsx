@@ -1,38 +1,84 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiHeart, FiMap } from 'react-icons/fi';
+import { FiHeart, FiMap, FiChevronRight } from 'react-icons/fi';
+import { userApi } from '../../services/userApi';
 
 interface Room {
-  id: number;
-  name: string;
-  location: string;
-  price: number;
+  _id: string;
+  title: string;
+  location: {
+    city: string;
+    country: string;
+  };
+  price: {
+    basePrice: number;
+  };
+  type: string;
   category: string;
   images?: string[];
 }
 
 interface UserFavoritesProps {
-  favoriteRooms: Room[];
+  showAll?: boolean;
 }
 
-const UserFavorites = ({ favoriteRooms }: UserFavoritesProps) => {
+const UserFavorites = ({ showAll = false }: UserFavoritesProps) => {
+  const [favoriteRooms, setFavoriteRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      try {
+        const response = await userApi.getSavedRooms();
+        if (response.success) {
+          setFavoriteRooms(response.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching favorites:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFavorites();
+  }, []);
+
+  // Only show two favorites on the dashboard, show all on dedicated page
+  const displayedFavorites = showAll
+    ? favoriteRooms
+    : favoriteRooms.slice(0, 2);
+
+  if (loading) {
+    return <div className="animate-pulse">Loading your favorites...</div>;
+  }
+
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-        Your Favorite Spaces
-      </h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Your Favorite Spaces
+        </h2>
+        {!showAll && favoriteRooms.length > 2 && (
+          <Link
+            to="/favorites/all"
+            className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center hover:underline">
+            View All <FiChevronRight className="ml-1" />
+          </Link>
+        )}
+      </div>
 
       {favoriteRooms.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {favoriteRooms.map((room) => (
+          {displayedFavorites.map((room) => (
             <div
-              key={room.id}
+              key={room._id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
               <div className="relative">
                 <div className="h-48 bg-gray-200 dark:bg-gray-700 overflow-hidden">
                   {room.images && room.images.length > 0 ? (
                     <img
                       src={room.images[0]}
-                      alt={room.name}
+                      alt={room.title}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -41,17 +87,26 @@ const UserFavorites = ({ favoriteRooms }: UserFavoritesProps) => {
                     </div>
                   )}
                 </div>
-                <button className="absolute top-3 right-3 p-2 bg-white/80 dark:bg-gray-800/80 rounded-full text-red-500 hover:bg-white dark:hover:bg-gray-800">
+                <button
+                  className="absolute top-3 right-3 p-2 bg-white/80 dark:bg-gray-800/80 rounded-full text-red-500 hover:bg-white dark:hover:bg-gray-800"
+                  onClick={() => {
+                    userApi.unsaveRoom(room._id).then(() => {
+                      setFavoriteRooms(
+                        favoriteRooms.filter((r) => r._id !== room._id)
+                      );
+                    });
+                  }}>
                   <FiHeart className="fill-current" size={18} />
                 </button>
               </div>
 
               <div className="p-5">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  {room.name}
+                  {room.title}
                 </h3>
                 <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
-                  <FiMap className="mr-1" /> {room.location}
+                  <FiMap className="mr-1" /> {room.location.city},{' '}
+                  {room.location.country}
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
@@ -59,12 +114,12 @@ const UserFavorites = ({ favoriteRooms }: UserFavoritesProps) => {
                       Price
                     </p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      ₱{room.price.toLocaleString()}
+                      ₱{room.price.basePrice.toLocaleString()}
                       {room.category === 'Room Stay' ? ' / night' : ' / hour'}
                     </p>
                   </div>
                   <Link
-                    to={`/rooms/${room.id}`}
+                    to={`/rooms/${room._id}`}
                     className="px-3 py-1 bg-darkBlue text-light dark:bg-light dark:text-darkBlue rounded-lg hover:opacity-90 transition-colors text-sm font-medium">
                     View Details
                   </Link>
