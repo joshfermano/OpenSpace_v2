@@ -37,6 +37,9 @@ router.use(protect); // Apply authentication middleware to all routes below
 // User profile
 router.get('/me', authController.getCurrentUser);
 
+// Password update (for authenticated users)
+router.post('/update-password', authController.updatePassword);
+
 // Protected email verification routes (for already authenticated users)
 router.post(
   '/email-verification/initiate',

@@ -5,7 +5,6 @@ import { IoMdArrowBack } from 'react-icons/io';
 import { MdOutlineRule } from 'react-icons/md';
 import { HiOutlineDocumentText } from 'react-icons/hi';
 import { RiTimeLine } from 'react-icons/ri';
-
 import Calendar from 'react-calendar';
 import { useAuth } from '../../contexts/AuthContext';
 import ReviewArea from '../../components/Room/ReviewArea';
@@ -14,6 +13,7 @@ import { userApi } from '../../services/userApi';
 import placeholder from '../../assets/logo_black.jpg';
 import '../../css/calendar.css';
 import { API_URL } from '../../services/core';
+import { handleImageError } from '../../utils/imageUtils';
 
 const ViewRoom = () => {
   const { roomId } = useParams();
@@ -62,7 +62,6 @@ const ViewRoom = () => {
     '10:00 PM',
   ];
 
-  // Helper function to get the full image URL
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return placeholder;
     if (imagePath.startsWith('http')) return imagePath;
@@ -538,9 +537,7 @@ const ViewRoom = () => {
                   src={getImageUrl(room.images[currentImageIndex])}
                   alt={`${room.title} - Image ${currentImageIndex + 1}`}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = placeholder;
-                  }}
+                  onError={(e) => handleImageError(e)}
                 />
               ) : (
                 <img
@@ -659,12 +656,10 @@ const ViewRoom = () => {
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
                       {room.host.profileImage ? (
                         <img
-                          src={getImageUrl(room.host.profileImage)}
-                          alt={`${room.host.firstName} ${room.host.lastName}`}
+                          src={getImageUrl(room.images[currentImageIndex])}
+                          alt={`${room.title} - Image ${currentImageIndex + 1}`}
                           className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = placeholder;
-                          }}
+                          onError={(e) => handleImageError(e)}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-500 text-xl font-bold">

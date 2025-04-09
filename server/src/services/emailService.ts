@@ -15,11 +15,11 @@ const createTransporter = () => {
   const isDevelopment = process.env.NODE_ENV !== 'production';
 
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.sendgrid.net',
-    port: Number(process.env.EMAIL_PORT) || 587,
-    secure: false, // false for TLS - port 587
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT),
+    secure: false,
     auth: {
-      user: process.env.EMAIL_USER || 'apikey',
+      user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
     },
     tls: {

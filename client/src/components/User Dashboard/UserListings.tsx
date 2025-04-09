@@ -4,6 +4,7 @@ import { FiHome, FiMap, FiEdit2, FiChevronRight } from 'react-icons/fi';
 import { FaPesoSign } from 'react-icons/fa6';
 import { roomApi } from '../../services/roomApi';
 import { API_URL } from '../../services/core';
+import { getImageUrl, handleImageError } from '../../utils/imageUtils';
 
 interface Room {
   _id: string;
@@ -151,21 +152,7 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
                       src={getImageUrl(room.images[0])}
                       alt={room.title}
                       className="h-full w-full object-cover"
-                      onError={(e) => {
-                        // Fallback if image fails to load
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = '';
-                        e.currentTarget.parentElement!.innerHTML = `
-                          <div class="h-full w-full flex items-center justify-center">
-                            <span class="text-gray-400">
-                              <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="32" width="32" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                              </svg>
-                            </span>
-                          </div>
-                        `;
-                      }}
+                      onError={(e) => handleImageError(e)}
                     />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center">

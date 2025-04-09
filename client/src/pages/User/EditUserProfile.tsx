@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfileInformation from '../../components/Edit Profile/ProfileInformation';
 import VerificationStatus from '../../components/Edit Profile/VerificationStatus';
+import PasswordReset from '../../components/Edit Profile/PasswordReset';
 
 interface HostInfo {
   bio?: string;
@@ -121,6 +122,9 @@ const EditUserProfile = () => {
           refreshUser={handleRefreshUser}
           setGlobalMessage={setGlobalMessage}
         />
+
+        {/* Password Reset Section */}
+        <PasswordReset setGlobalMessage={setGlobalMessage} />
 
         {/* Verification Status */}
         <VerificationStatus

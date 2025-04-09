@@ -1,4 +1,6 @@
 import express, { Application } from 'express';
+import { checkSupabaseConnection } from './config/supabase';
+import { initializeStorage } from './services/imageService';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -93,6 +95,16 @@ const startServer = async () => {
 
     await mongoose.connect(process.env.MONGO_URL);
     console.log('Connected to MongoDB');
+
+    // Check Supabase connection and initialize storage
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+      await checkSupabaseConnection();
+      await initializeStorage();
+    } else {
+      console.warn(
+        'Supabase credentials not found, image storage will not be available'
+      );
+    }
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

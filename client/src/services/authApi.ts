@@ -134,10 +134,32 @@ export const authApi = {
   resendEmailVerification: async () => {
     try {
       console.log('Resending email verification OTP...');
-      const response = await fetchWithAuth(
-        '/api/auth/email-verification/resend',
+
+      // Get user info from context, not localStorage
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const email = user?.email;
+
+      if (!email) {
+        return {
+          success: false,
+          message: 'No user email found. Please log in again.',
+        };
+      }
+
+      console.log(`Attempting to resend verification to: ${email}`);
+
+      // Use the /send endpoint which is properly configured as public
+      const response = await fetch(
+        `${API_URL}/api/auth/email-verification/send`,
         {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ email }),
         }
       );
 
@@ -155,10 +177,43 @@ export const authApi = {
     }
   },
 
-  // Update the verifyEmailWithOTP function
+  updatePassword: async (passwordData: {
+    currentPassword: string;
+    newPassword: string;
+  }) => {
+    try {
+      const response = await fetchWithAuth('/api/auth/update-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(passwordData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update password');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Password update error:', error);
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Network error while updating password',
+      };
+    }
+  },
+
   verifyEmailWithOTP: async (otp: string) => {
     try {
       console.log('Verifying email with OTP:', otp);
+      const token = localStorage.getItem('token');
+      const email = JSON.parse(localStorage.getItem('user') || '{}')?.email;
 
       const response = await fetch(
         `${API_URL}/api/auth/email-verification/verify`,
@@ -166,9 +221,10 @@ export const authApi = {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
           },
           credentials: 'include',
-          body: JSON.stringify({ otp }),
+          body: JSON.stringify({ otp, email }),
         }
       );
 

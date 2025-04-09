@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
-import path from 'path';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
 import Room from '../models/Room';
 import User from '../models/User';
 import Booking from '../models/Booking';
+import { uploadImage } from '../services/imageService';
+import { deleteImage } from '../services/imageService';
 
 // Create a new room listing
 export const createRoom = async (
@@ -811,27 +812,16 @@ export const uploadRoomImages = async (
     const { roomId } = req.params;
     const files = req.files as Express.Multer.File[];
 
-    // Check if any files were uploaded
     if (!files || files.length === 0) {
       res.status(400).json({
         success: false,
-        message: 'No images uploaded',
+        message: 'No files uploaded',
       });
       return;
     }
 
-    // Check if room exists
     const room = await Room.findById(roomId);
     if (!room) {
-      // Delete uploaded files if room doesn't exist
-      await Promise.all(
-        files.map((file) =>
-          fs
-            .unlink(file.path)
-            .catch((err) => console.error('Error deleting file:', err))
-        )
-      );
-
       res.status(404).json({
         success: false,
         message: 'Room not found',
@@ -839,9 +829,8 @@ export const uploadRoomImages = async (
       return;
     }
 
-    // Check if user is authorized
+    // Verify ownership
     if (room.host.toString() !== req.user.id && req.user.role !== 'admin') {
-      // Delete uploaded files if not authorized
       await Promise.all(
         files.map((file) =>
           fs
@@ -857,20 +846,30 @@ export const uploadRoomImages = async (
       return;
     }
 
-    // Process uploaded files
-    const imageUrls = files.map(
-      (file) => `/uploads/rooms/${path.basename(file.path)}`
-    );
+    // Process uploaded files - upload to Supabase
+    const uploadPromises = files.map((file) => uploadImage(file.path, 'rooms'));
+    const imageUrls = await Promise.all(uploadPromises);
+
+    // Filter out any failed uploads
+    const validImageUrls = imageUrls.filter((url) => url !== null) as string[];
+
+    if (validImageUrls.length === 0) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload images',
+      });
+      return;
+    }
 
     // Add new images to room
-    room.images = [...room.images, ...imageUrls];
+    room.images = [...room.images, ...validImageUrls];
     await room.save();
 
     res.status(200).json({
       success: true,
       message: 'Images uploaded successfully',
       data: {
-        images: imageUrls,
+        images: validImageUrls,
       },
     });
   } catch (error: any) {
@@ -890,7 +889,7 @@ export const deleteRoomImage = async (
   try {
     const { roomId, imageId } = req.params;
 
-    // Check if room exists
+    // Find room
     const room = await Room.findById(roomId);
     if (!room) {
       res.status(404).json({
@@ -900,18 +899,17 @@ export const deleteRoomImage = async (
       return;
     }
 
-    // Check if user is authorized
+    // Verify ownership
     if (room.host.toString() !== req.user.id && req.user.role !== 'admin') {
       res.status(403).json({
         success: false,
-        message: 'Not authorized to delete images from this room',
+        message: 'Not authorized to delete images for this room',
       });
       return;
     }
 
-    // Find image in room's images array
+    // Find image in the room's images array
     const imageIndex = room.images.findIndex((img) => img.includes(imageId));
-
     if (imageIndex === -1) {
       res.status(404).json({
         success: false,
@@ -920,20 +918,9 @@ export const deleteRoomImage = async (
       return;
     }
 
-    // Get full image path
-    const imagePath = path.join(
-      __dirname,
-      '../..',
-      'src',
-      room.images[imageIndex]
-    );
-
-    // Remove image from filesystem
-    try {
-      await fs.unlink(imagePath);
-    } catch (error) {
-      console.error('Error deleting image file:', error);
-    }
+    // Delete from Supabase
+    const imageUrl = room.images[imageIndex];
+    await deleteImage(imageUrl);
 
     // Remove image from room's images array
     room.images.splice(imageIndex, 1);

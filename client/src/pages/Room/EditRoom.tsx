@@ -15,6 +15,7 @@ import { roomApi } from '../../services/roomApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_URL } from '../../services/core';
 import placeholder from '../../assets/logo_black.jpg';
+import { getImageUrl, handleImageError } from '../../utils/imageUtils';
 
 // Common amenities options
 const AMENITIES_OPTIONS = [

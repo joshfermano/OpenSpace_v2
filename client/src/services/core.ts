@@ -3,54 +3,39 @@ export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export const fetchWithAuth = async (
   endpoint: string,
   options: RequestInit = {}
-) => {
-  const url = `${API_URL}${endpoint}`;
+): Promise<Response> => {
+  const token = localStorage.getItem('token');
 
-  const headers = new Headers({
+  const defaultHeaders = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  });
-
-  const fetchOptions: RequestInit = {
-    ...options,
-    credentials: 'include', // Always include credentials
-    headers,
+    Authorization: token ? `Bearer ${token}` : '',
   };
 
-  console.log(`Fetching ${endpoint} with options:`, {
-    method: options.method || 'GET',
-    credentials: fetchOptions.credentials,
-  });
+  const config = {
+    ...options,
+    credentials: 'include' as RequestCredentials,
+    headers: {
+      ...defaultHeaders,
+      ...options.headers,
+    },
+  };
 
-  try {
-    const response = await fetch(url, fetchOptions);
-
-    // Check for authentication errors
-    if (response.status === 401) {
-      console.warn('Authentication failed for request:', endpoint);
-
-      // Don't immediately dispatch event - let the caller handle it
-      // so we don't interrupt the current operation
-    }
-
-    return response;
-  } catch (error) {
-    console.error(`Error fetching ${endpoint}:`, error);
-
-    if (
-      error instanceof TypeError &&
-      error.message.includes('Failed to fetch')
-    ) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Network error',
-          message: 'Unable to connect to server. Please try again later.',
-        }),
-        { status: 503, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    throw error;
+  if (
+    options.body &&
+    typeof options.body !== 'string' &&
+    !(options.body instanceof FormData)
+  ) {
+    config.body = JSON.stringify(options.body);
   }
+
+  const response = await fetch(`${API_URL}${endpoint}`, config);
+
+  // Handle token expiration
+  if (response.status === 401) {
+    // You could implement token refresh logic here
+    // Or simply clear the token and redirect to login
+    console.warn('Authentication token may be expired');
+  }
+
+  return response;
 };

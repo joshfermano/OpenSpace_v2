@@ -167,7 +167,7 @@ const PasswordResetVerification = () => {
 
           <div className="mt-4 text-center">
             <Link
-              to="/login"
+              to="/auth/login"
               className="flex items-center justify-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
               <FiArrowLeft className="mr-2" size={14} /> Back to Login
             </Link>

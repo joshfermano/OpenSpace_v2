@@ -13,6 +13,7 @@ import { FaPesoSign } from 'react-icons/fa6';
 import { roomApi } from '../../services/roomApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_URL } from '../../services/core';
+import { getImageUrl, handleImageError } from '../../utils/imageUtils';
 
 // Common amenities options
 const AMENITIES_OPTIONS = [

@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 import Room from '../models/Room';
 import Booking from '../models/Booking';
 import { IUser } from '../models/User';
+import { uploadImage } from '../services/imageService';
+import { deleteImage } from '../services/imageService';
 
 // Helper function to safely access req.user
 function getUserFromRequest(req: Request, res: Response): IUser | null {
@@ -28,7 +30,6 @@ function getUserFromRequest(req: Request, res: Response): IUser | null {
   return req.user as IUser;
 }
 
-// Create a type for the safe user response
 interface SafeUserResponse {
   password?: string;
   [key: string]: any;
@@ -508,35 +509,17 @@ export const uploadProfileImage = async (
   res: Response
 ): Promise<void> => {
   try {
-    const userId = req.user?._id || req.user?.id;
-
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: 'Not authenticated',
-      });
-      return;
-    }
-
-    // Check if file exists
     const file = req.file;
     if (!file) {
       res.status(400).json({
         success: false,
-        message: 'No file uploaded',
+        message: 'No image uploaded',
       });
       return;
     }
 
-    // Create public URL path without the 'public' prefix
-    const relativePath = `/uploads/profiles/${file.filename}`;
-
-    // Update user's profile image
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { profileImage: relativePath },
-      { new: true }
-    ).select('-password');
+    const userId = req.user.id;
+    const user = await User.findById(userId);
 
     if (!user) {
       res.status(404).json({
@@ -546,16 +529,34 @@ export const uploadProfileImage = async (
       return;
     }
 
+    // If user already has a profile image, delete the old one
+    if (user.profileImage && user.profileImage.includes('supabase')) {
+      await deleteImage(user.profileImage);
+    }
+
+    // Upload to Supabase
+    const imageUrl = await uploadImage(file.path, 'profiles');
+
+    if (!imageUrl) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload profile image',
+      });
+      return;
+    }
+
+    // Update user with new profile image URL
+    user.profileImage = imageUrl;
+    await user.save();
+
     res.status(200).json({
       success: true,
       message: 'Profile image uploaded successfully',
       data: {
-        profileImage: relativePath,
-        user,
+        profileImage: imageUrl,
       },
     });
   } catch (error: any) {
-    console.error('Profile image upload error:', error);
     res.status(500).json({
       success: false,
       message: 'Error uploading profile image',

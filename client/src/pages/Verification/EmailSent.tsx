@@ -47,9 +47,16 @@ const EmailSent = () => {
     setResendMessage(null);
 
     try {
-      // Use the public endpoint for resending
+      console.log('Attempting to resend verification email');
+
+      // Use the email from the user context instead of localStorage
+      if (!user || !user.email) {
+        throw new Error('User email not found. Please log in again.');
+      }
+
+      // Use authApi instead of direct fetch
       const response = await authApi.resendEmailVerification();
-      console.log('Resend response:', response);
+      console.log('Resend OTP response:', response);
 
       if (response.success) {
         setResendMessage({
@@ -57,16 +64,18 @@ const EmailSent = () => {
           text: 'Verification code resent! Please check your inbox.',
         });
       } else {
-        setResendMessage({
-          type: 'error',
-          text: response.message || 'Failed to resend verification code.',
-        });
+        throw new Error(
+          response.message || 'Failed to resend verification code'
+        );
       }
     } catch (error) {
       console.error('Error during resend:', error);
       setResendMessage({
         type: 'error',
-        text: 'An error occurred while resending the verification code.',
+        text:
+          error instanceof Error
+            ? error.message
+            : 'An error occurred while resending the verification code. Please try again.',
       });
     } finally {
       setIsResending(false);
@@ -138,7 +147,6 @@ const EmailSent = () => {
     }
   };
 
-  // Redirect to login if not authenticated
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -255,7 +263,7 @@ const EmailSent = () => {
 
         <div className="flex flex-col space-y-3">
           <Link
-            to="/verification/email"
+            to="/dashboard"
             className="px-6 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300">
             Go Back to Verification
           </Link>

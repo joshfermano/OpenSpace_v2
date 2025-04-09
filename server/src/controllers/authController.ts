@@ -8,6 +8,10 @@ import { sendVerificationEmail } from '../services/emailService';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 
+const generateOTP = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 interface CustomCookieOptions extends CookieOptions {
   sameSite: 'strict' | 'lax' | 'none' | boolean;
   expires: Date;
@@ -324,44 +328,103 @@ export const initiateEmailVerification = async (
   }
 };
 
-// Resend email verification OTP
 export const resendEmailVerification = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const currentUser = ensureAuthenticated(req, res);
-    if (!currentUser) return;
+    // If we have a logged-in user, use their details
+    if (req.user) {
+      const userId = new mongoose.Types.ObjectId(req.user._id);
+      const email = req.user.email;
 
-    const userId = new mongoose.Types.ObjectId(currentUser._id);
+      const result = await sendEmailVerificationOTP(userId, email);
 
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({
+      if (result) {
+        res.status(200).json({
+          success: true,
+          message: 'Verification OTP sent to email',
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to send verification OTP',
+        });
+      }
+      return;
+    }
+
+    // For cases where we don't have a logged-in user but have the email in the request
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({
         success: false,
-        message: 'User not found',
+        message: 'Email is required for unauthenticated verification',
       });
       return;
     }
 
-    // Send OTP
-    const result = await sendEmailVerificationOTP(userId, user.email);
-
-    if (result) {
-      res.status(200).json({
-        success: true,
-        message: 'Verification OTP resent to email',
-      });
-    } else {
-      res.status(500).json({
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      res.status(404).json({
         success: false,
-        message: 'Failed to resend verification OTP',
+        message: 'User not found with this email',
       });
+      return;
     }
+
+    // Check if email is already verified
+    if (user.isEmailVerified) {
+      res.status(400).json({
+        success: false,
+        message: 'Email is already verified',
+      });
+      return;
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15); // OTP expires in 15 minutes
+
+    // Store OTP in database
+    await OtpVerification.findOneAndUpdate(
+      { user: user._id, type: 'email' },
+      {
+        otp,
+        expiresAt,
+      },
+      { upsert: true, new: true }
+    );
+
+    const sendOtpVerificationEmail = async (
+      email: string,
+      firstName: string,
+      otp: string
+    ): Promise<boolean> => {
+      try {
+        await sendVerificationEmail(email, firstName, otp);
+        return true;
+      } catch (error) {
+        console.error('Error sending verification email:', error);
+        return false;
+      }
+    };
+
+    // Send verification email with OTP
+    await sendOtpVerificationEmail(user.email, user.firstName, otp);
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification OTP resent successfully',
+    });
   } catch (error: any) {
+    console.error('Resend email verification error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error resending email verification',
+      message: 'Failed to resend verification OTP',
       error: error.message,
     });
   }
@@ -854,6 +917,102 @@ export const resetPassword = async (
     res.status(500).json({
       success: false,
       message: 'Error resetting password',
+      error: error.message,
+    });
+  }
+};
+
+export const updatePassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    // Since this is now in the protected routes section, req.user should be available
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+      return;
+    }
+
+    const user = req.user as IUser; // Cast to your User interface type
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate required fields
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required',
+      });
+      return;
+    }
+
+    // Validate password strength
+    if (newPassword.length < 8) {
+      res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters long',
+      });
+      return;
+    }
+
+    // Regex for password requirements
+    const hasUpperCase = /[A-Z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+
+    if (!hasUpperCase || !hasNumber || !hasSpecial) {
+      res.status(400).json({
+        success: false,
+        message:
+          'Password must contain at least one uppercase letter, one number, and one special character',
+      });
+      return;
+    }
+
+    // Check if new password is same as current
+    if (currentPassword === newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'New password cannot be the same as current password',
+      });
+      return;
+    }
+
+    // Find the user with password
+    const userWithPassword = await User.findById(user._id).select('+password');
+    if (!userWithPassword) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    // Verify current password
+    const isMatch = await userWithPassword.comparePassword(currentPassword);
+    if (!isMatch) {
+      res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+      return;
+    }
+
+    // Update password
+    userWithPassword.password = newPassword;
+    await userWithPassword.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password updated successfully',
+    });
+  } catch (error: any) {
+    console.error('Password update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating password',
       error: error.message,
     });
   }

@@ -54,6 +54,7 @@ import HostProfile from './pages/Host/HostProfile';
 // Verification Pages
 import EmailVerification from './pages/Verification/EmailVerification';
 import EmailSent from './pages/Verification/EmailSent';
+import PasswordResetVerification from './pages/Verification/PasswordResetVerification';
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -77,7 +78,22 @@ const router = createBrowserRouter(
               </ProtectedRoute>
             }
           />
-          <Route path="email-sent" element={<EmailSent />} />
+          <Route
+            path="email-sent"
+            element={
+              <ProtectedRoute>
+                <EmailSent />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="password-reset"
+            element={
+              <ProtectedRoute>
+                <PasswordResetVerification />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* Protected Routes - User */}

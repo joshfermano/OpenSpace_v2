@@ -1,44 +1,39 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
 // Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../../uploads');
+const uploadsDir = path.join(__dirname, '../../temp-uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Create review uploads directory
-const reviewUploadsDir = path.join(uploadsDir, 'reviews');
-if (!fs.existsSync(reviewUploadsDir)) {
-  fs.mkdirSync(reviewUploadsDir, { recursive: true });
-}
+// Create subdirectories for different types of uploads
+['profiles', 'rooms', 'reviews', 'verifications'].forEach((dir) => {
+  const subDir = path.join(uploadsDir, dir);
+  if (!fs.existsSync(subDir)) {
+    fs.mkdirSync(subDir, { recursive: true });
+  }
+});
 
 // Configure storage
 const storage = multer.diskStorage({
   destination: (_req, file, cb) => {
     // Different folders for different types of uploads
     if (file.fieldname === 'photos') {
-      cb(null, reviewUploadsDir);
+      cb(null, path.join(uploadsDir, 'reviews'));
     } else if (file.fieldname === 'profileImage') {
-      const profileUploadsDir = path.join(uploadsDir, 'profiles');
-      if (!fs.existsSync(profileUploadsDir)) {
-        fs.mkdirSync(profileUploadsDir, { recursive: true });
-      }
-      cb(null, profileUploadsDir);
+      cb(null, path.join(uploadsDir, 'profiles'));
     } else if (file.fieldname === 'images') {
-      const roomUploadsDir = path.join(uploadsDir, 'rooms');
-      if (!fs.existsSync(roomUploadsDir)) {
-        fs.mkdirSync(roomUploadsDir, { recursive: true });
-      }
-      cb(null, roomUploadsDir);
+      cb(null, path.join(uploadsDir, 'rooms'));
     } else {
       cb(null, uploadsDir);
     }
   },
   filename: (_req, file, cb) => {
     // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = uuidv4();
     const ext = path.extname(file.originalname);
     cb(null, file.fieldname + '-' + uniqueSuffix + ext);
   },
@@ -63,7 +58,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
 });
 

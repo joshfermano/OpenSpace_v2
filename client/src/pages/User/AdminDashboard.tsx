@@ -5,12 +5,12 @@ import { FiMapPin, FiUser } from 'react-icons/fi';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminApi } from '../../services/adminApi';
-
 import DashboardSummary from '../../components/Admin/DashboardSummary';
 import UserManagement from '../../components/Admin/UserManagement';
 import VerificationRequests from '../../components/Admin/VerificationRequests';
 import RoomApprovals from '../../components/Admin/RoomApprovals';
 import AdminModal from '../../components/Admin/AdminModal';
+import { getImageUrl, handleImageError } from '../../utils/imageUtils';
 
 type ActionType =
   | 'approveRoom'
@@ -267,9 +267,9 @@ const AdminDashboard = () => {
         setFilteredRooms(
           rooms.filter(
             (room) =>
-              room.name.toLowerCase().includes(search) ||
-              room.location.toLowerCase().includes(search) ||
-              room.category.toLowerCase().includes(search)
+              room.name?.toLowerCase().includes(search) ||
+              room.location?.toLowerCase().includes(search) ||
+              room.category?.toLowerCase().includes(search)
           )
         );
         break;
@@ -277,8 +277,8 @@ const AdminDashboard = () => {
         setFilteredVerifications(
           verifications.filter(
             (request) =>
-              request.userName.toLowerCase().includes(search) ||
-              request.userEmail.toLowerCase().includes(search)
+              request.userName?.toLowerCase().includes(search) ||
+              request.userEmail?.toLowerCase().includes(search)
           )
         );
         break;
@@ -286,9 +286,9 @@ const AdminDashboard = () => {
         setFilteredUsers(
           users.filter(
             (user) =>
-              user.name.toLowerCase().includes(search) ||
-              user.email.toLowerCase().includes(search) ||
-              user.role.toLowerCase().includes(search)
+              user.name?.toLowerCase().includes(search) ||
+              user.email?.toLowerCase().includes(search) ||
+              user.role?.toLowerCase().includes(search)
           )
         );
         break;
@@ -603,9 +603,7 @@ const AdminDashboard = () => {
             <div className="relative rounded-xl overflow-hidden h-64 bg-gray-100 dark:bg-gray-800">
               {previewData.data.images && previewData.data.images.length > 0 ? (
                 <img
-                  src={`${API_URL}${
-                    previewData.data.images[0].startsWith('/') ? '' : '/'
-                  }${previewData.data.images[0]}`}
+                  src={getImageUrl(previewData.data.images[0])}
                   alt={previewData.data.title || 'Room preview'}
                   className="w-full h-full object-cover"
                   onError={handleImageError}
@@ -616,12 +614,14 @@ const AdminDashboard = () => {
                 </div>
               )}
               <div
-                className="absolute top-3 right-3 px-3 py-1 rounded-full text-sm font-medium tracking-wide
-          ${previewData.data.status === 'pending' 
-            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' 
-            : previewData.data.status === 'approved' 
-            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-            : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'}">
+                className={`absolute top-3 right-3 px-3 py-1 rounded-full text-sm font-medium tracking-wide
+                  ${
+                    previewData.data.status === 'pending'
+                      ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                      : previewData.data.status === 'approved'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                  }`}>
                 {previewData.data.status?.charAt(0).toUpperCase() +
                   previewData.data.status?.slice(1) || 'Unknown'}
               </div>
@@ -750,11 +750,7 @@ const AdminDashboard = () => {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 mr-3">
                 {previewData.data.host?.profileImage ? (
                   <img
-                    src={`${API_URL}${
-                      previewData.data.host.profileImage.startsWith('/')
-                        ? ''
-                        : '/'
-                    }${previewData.data.host.profileImage}`}
+                    src={getImageUrl(previewData.data.host.profileImage)}
                     alt="Host"
                     className="w-full h-full object-cover"
                     onError={handleImageError}
@@ -791,11 +787,9 @@ const AdminDashboard = () => {
                         key={index + 1}
                         className="aspect-square rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
                         <img
-                          src={`${API_URL}${
-                            url.startsWith('/') ? '' : '/'
-                          }${url}`}
+                          src={url}
                           alt={`Room preview ${index + 2}`}
-                          className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                          className="w-full h-full object-cover"
                           onError={handleImageError}
                         />
                       </div>
@@ -808,12 +802,9 @@ const AdminDashboard = () => {
           <div className="flex flex-col items-center">
             <img
               src={previewData.url}
-              alt="ID Document"
-              className="max-w-full h-auto rounded-lg"
-              onError={(e) => {
-                console.error('Error loading document image:', previewData.url);
-                e.currentTarget.src = '/assets/images/document-placeholder.png';
-              }}
+              alt="Verification document"
+              className="max-w-full max-h-[70vh] object-contain"
+              onError={handleImageError}
             />
           </div>
         ) : (

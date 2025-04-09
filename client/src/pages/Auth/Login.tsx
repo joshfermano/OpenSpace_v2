@@ -107,7 +107,7 @@ const Login = () => {
               Password
             </label>
             <Link
-              to="/auth/forgot-password"
+              to="/verification/password-reset"
               className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
               Forgot password?
             </Link>
