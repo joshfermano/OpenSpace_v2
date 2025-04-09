@@ -1,6 +1,8 @@
 import nodemailer from 'nodemailer';
 import 'dotenv/config';
 
+const VERIFIED_SENDER = process.env.EMAIL_FROM || 'openspacereserve@gmail.com';
+
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -10,21 +12,14 @@ const formatCurrency = (amount: number): string => {
 
 // Create reusable transporter
 const createTransporter = () => {
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  console.log('Email Config:', {
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    user: process.env.EMAIL_USER ? 'Set' : 'Not Set',
-    pass: process.env.EMAIL_PASSWORD ? 'Set' : 'Not Set',
-  });
+  const isDevelopment = process.env.NODE_ENV !== 'production';
 
   return nodemailer.createTransport({
-    service: 'gmail',
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: Number(process.env.EMAIL_PORT) || 465,
-    secure: true, // true for 465, false for other ports
+    host: process.env.EMAIL_HOST || 'smtp.sendgrid.net',
+    port: Number(process.env.EMAIL_PORT) || 587,
+    secure: false, // false for TLS - port 587
     auth: {
-      user: process.env.EMAIL_USER,
+      user: process.env.EMAIL_USER || 'apikey',
       pass: process.env.EMAIL_PASSWORD,
     },
     tls: {
@@ -47,9 +42,7 @@ export const sendTestEmail = async (
   to: string
 ): Promise<nodemailer.SentMessageInfo> => {
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: 'OpenSpace Email Test',
     html: `
@@ -109,9 +102,7 @@ export const sendOtpVerificationEmail = async (
   `;
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: 'Verify Your Email Address - OpenSpace',
     html,
@@ -191,9 +182,7 @@ export const sendVerificationEmail = async (
   const verificationUrl = `${baseUrl}/verify-email/${token}`;
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: 'Verify Your Email Address',
     html: `
@@ -241,9 +230,7 @@ export const sendPasswordResetEmail = async (
   const resetUrl = `${baseUrl}/reset-password/${token}`;
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: 'Reset Your Password',
     html: `
@@ -326,9 +313,7 @@ export const sendBookingConfirmationEmail = async (
   }
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: 'Your OpenSpace Booking Confirmation',
     html: `
@@ -478,9 +463,7 @@ export const sendBookingStatusUpdateEmail = async (
   }
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject,
     html: htmlContent,
@@ -530,9 +513,7 @@ export const sendHostBookingNotificationEmail = async (
     : '';
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: '🔔 New Booking Request for Your Property',
     html: `
@@ -591,9 +572,7 @@ export const sendPaymentConfirmationEmail = async (
   const bookingUrl = `${baseUrl}/bookings/${bookingId}`;
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: '💳 Payment Confirmation for Your OpenSpace Booking',
     html: `
@@ -655,9 +634,7 @@ export const sendRefundNotificationEmail = async (
   const bookingUrl = `${baseUrl}/bookings/${bookingId}`;
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: '💰 Refund Processed for Your OpenSpace Booking',
     html: `
@@ -706,9 +683,7 @@ export const sendHostPayoutNotificationEmail = async (
   const earningsUrl = `${baseUrl}/host/earnings`;
 
   const mailOptions = {
-    from: `"OpenSpace" <${
-      process.env.EMAIL_USER || 'khovickfermano@gmail.com'
-    }>`,
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
     to,
     subject: '💸 Host Payout Processed - OpenSpace',
     html: `

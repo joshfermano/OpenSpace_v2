@@ -5,3 +5,10 @@
 .env.development
 .env.test
 .env.production
+
+# images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp

@@ -89,4 +89,20 @@ export const roomApi = {
       };
     }
   },
+
+  deleteRoom: async (roomId: string) => {
+    try {
+      const response = await fetchWithAuth(`/api/rooms/${roomId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error deleting room ${roomId}:`, error);
+      return {
+        success: false,
+        message: 'Network error while deleting room',
+      };
+    }
+  },
 };

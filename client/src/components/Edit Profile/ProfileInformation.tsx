@@ -35,12 +35,14 @@ interface ProfileInformationProps {
       text: string;
     } | null
   ) => void;
+  updateHostMode?: (isHost: boolean) => void;
 }
 
 const ProfileInformation = ({
   user: extendedUser,
   refreshUser,
   setGlobalMessage,
+  updateHostMode,
 }: ProfileInformationProps) => {
   const profilePicInputRef = useRef<HTMLInputElement>(null);
 
@@ -196,6 +198,10 @@ const ProfileInformation = ({
         // Refresh user data in context
         await refreshUser();
         setHostModeEnabled(true);
+        // Notify parent component of host mode change
+        if (updateHostMode) {
+          updateHostMode(true);
+        }
         // Scroll to top to see the success message
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -209,6 +215,21 @@ const ProfileInformation = ({
       });
     } finally {
       setIsBecomingHost(false);
+    }
+  };
+
+  const convertResponseTimeToNumber = (timeString: string): number => {
+    switch (timeString) {
+      case 'Within an hour':
+        return 1;
+      case 'Within a few hours':
+        return 4;
+      case 'Within a day':
+        return 24;
+      case 'Within 2 days':
+        return 48;
+      default:
+        return 24; // Default to 24 hours
     }
   };
 
@@ -228,70 +249,55 @@ const ProfileInformation = ({
       // Upload profile image if a new one was selected
       let profileImageUrl = formData.profileImage;
       if (profileImageFile) {
-        const uploadResponse = await uploadProfileImage();
-        if (uploadResponse) {
-          profileImageUrl = uploadResponse;
+        try {
+          const uploadResponse = await uploadProfileImage();
+          if (uploadResponse) {
+            profileImageUrl = uploadResponse;
+          }
+        } catch (error) {
+          console.error('Profile image upload failed:', error);
         }
       }
 
-      // Create profile update data matching backend expectations
-      const updatedUserData: {
-        firstName: string;
-        lastName: string;
-        phoneNumber: string;
-        profileImage: string;
-        hostInfo?: {
-          bio: string;
-          languagesSpoken: string[];
-          responseTime: string;
-          responseRate?: number;
-          acceptanceRate?: number;
-          hostSince?: Date;
-        };
-      } = {
+      // Create profile update data
+      const updatedUserData = {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         phoneNumber: formData.phone.trim(),
-        profileImage: profileImageUrl,
+        profileImage: profileImageUrl || '',
+        ...(extendedUser?.role === 'host' && {
+          hostInfo: {
+            bio: hostInfo.description.trim(),
+            languagesSpoken: hostInfo.languages
+              .split(',')
+              .map((lang) => lang.trim())
+              .filter((lang) => lang.length > 0),
+            responseTime: convertResponseTimeToNumber(hostInfo.responseTime),
+            ...(extendedUser.hostInfo?.responseRate && {
+              responseRate: extendedUser.hostInfo.responseRate,
+            }),
+            ...(extendedUser.hostInfo?.acceptanceRate && {
+              acceptanceRate: extendedUser.hostInfo.acceptanceRate,
+            }),
+            ...(extendedUser.hostInfo?.hostSince && {
+              hostSince: extendedUser.hostInfo.hostSince,
+            }),
+          },
+        }),
       };
 
-      // Update host info if the user is already a host
-      if (extendedUser?.role === 'host') {
-        const languagesArray = hostInfo.languages
-          .split(',')
-          .map((lang) => lang.trim())
-          .filter((lang) => lang.length > 0);
-
-        const hostInfoData = {
-          bio: hostInfo.description.trim(),
-          languagesSpoken: languagesArray,
-          responseTime: hostInfo.responseTime,
-        };
-
-        updatedUserData.hostInfo = {
-          ...hostInfoData,
-          responseRate: extendedUser.hostInfo?.responseRate || 100,
-          acceptanceRate: extendedUser.hostInfo?.acceptanceRate,
-          hostSince: extendedUser.hostInfo?.hostSince,
-        };
-      }
-
-      console.log('Submitting profile update with data:', updatedUserData);
-
+      // Use the userApi service
       const result = await userApi.updateUserProfile(updatedUserData);
-      console.log('Profile update result:', result);
 
-      if (result && result.success) {
+      if (result.success) {
         setGlobalMessage({
           type: 'success',
-          text: 'Profile updated successfully!',
+          text: 'Profile updated successfully',
         });
-        // Refresh user data in context
         await refreshUser();
-        // Scroll to top to see the success message
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        throw new Error(result?.message || 'Failed to update profile');
+        throw new Error(result.message || 'Failed to update profile');
       }
     } catch (error: any) {
       console.error('Profile update error:', error);

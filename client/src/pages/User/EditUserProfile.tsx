@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import ProfileInformation from '../../components/Edit Profile/ProfileInformation';
 import VerificationStatus from '../../components/Edit Profile/VerificationStatus';
@@ -23,10 +23,18 @@ interface ExtendedUser {
   role: 'user' | 'host' | 'admin';
   dateJoined?: string;
   createdAt?: string;
-  verificationLevel: 'none' | 'basic' | 'verified';
-  isGovernmentIdVerified: boolean;
+  verificationLevel: 'basic' | 'verified' | 'admin';
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  identificationDocument?: {
+    idType?: string;
+    idNumber?: string;
+    idImage?: string;
+    uploadDate?: Date;
+    verificationStatus?: 'pending' | 'approved' | 'rejected';
+    verificationDate?: Date;
+    rejectionReason?: string;
+  };
   hostInfo?: HostInfo;
 }
 
@@ -43,9 +51,45 @@ const EditUserProfile = () => {
     text: string;
   } | null>(null);
 
-  // Update host mode status when user info changes
-  const updateHostMode = (isHost: boolean) => {
-    setHostModeEnabled(isHost);
+  // Update host mode status and other user data when the user info changes
+  useEffect(() => {
+    if (extendedUser) {
+      setHostModeEnabled(extendedUser.role === 'host');
+    }
+  }, [extendedUser]);
+
+  // Handle refreshing user data and updating UI state
+  const handleRefreshUser = async () => {
+    try {
+      await refreshUser();
+      // After refreshing user data, we need to update the hostModeEnabled state
+      if (user) {
+        setHostModeEnabled((user as ExtendedUser).role === 'host');
+      }
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      setMessage({
+        type: 'error',
+        text: 'Failed to refresh user data. Please try again.',
+      });
+    }
+  };
+
+  // Set global message with auto-clear after 5 seconds
+  const setGlobalMessage = (
+    newMessage: {
+      type: 'success' | 'error';
+      text: string;
+    } | null
+  ) => {
+    setMessage(newMessage);
+
+    // Auto-clear success messages after 5 seconds
+    if (newMessage && newMessage.type === 'success') {
+      setTimeout(() => {
+        setMessage(null);
+      }, 5000);
+    }
   };
 
   return (
@@ -74,16 +118,15 @@ const EditUserProfile = () => {
         {/* Profile Information Form */}
         <ProfileInformation
           user={extendedUser}
-          refreshUser={refreshUser}
-          setGlobalMessage={setMessage}
+          refreshUser={handleRefreshUser}
+          setGlobalMessage={setGlobalMessage}
         />
 
         {/* Verification Status */}
         <VerificationStatus
           user={extendedUser}
-          refreshUser={refreshUser}
-          setGlobalMessage={setMessage}
-          isHostModeEnabled={hostModeEnabled}
+          refreshUser={handleRefreshUser}
+          setGlobalMessage={setGlobalMessage}
         />
       </div>
     </div>

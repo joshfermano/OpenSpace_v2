@@ -13,6 +13,7 @@ import { roomApi } from '../../services/roomApi';
 import { userApi } from '../../services/userApi';
 import placeholder from '../../assets/logo_black.jpg';
 import '../../css/calendar.css';
+import { API_URL } from '../../services/core';
 
 const ViewRoom = () => {
   const { roomId } = useParams();
@@ -61,6 +62,13 @@ const ViewRoom = () => {
     '10:00 PM',
   ];
 
+  // Helper function to get the full image URL
+  const getImageUrl = (imagePath: string) => {
+    if (!imagePath) return placeholder;
+    if (imagePath.startsWith('http')) return imagePath;
+    return `${API_URL}${imagePath}`;
+  };
+
   // Fetch room data and check if it's in user's favorites
   useEffect(() => {
     const fetchRoomData = async () => {
@@ -73,15 +81,16 @@ const ViewRoom = () => {
 
         if (response.success) {
           setRoom(response.data);
+          console.log('Room data:', response.data);
 
           // Set default times based on room type
-          if (response.data.type === 'Room Stay') {
+          if (response.data.type === 'stay') {
             setCheckInTime('2:00 PM');
             setCheckOutTime('12:00 PM');
-          } else if (response.data.type === 'Conference Room') {
+          } else if (response.data.type === 'conference') {
             setCheckInTime('8:00 AM');
             setCheckOutTime('5:00 PM');
-          } else if (response.data.type === 'Events Place') {
+          } else if (response.data.type === 'event') {
             setCheckInTime('10:00 AM');
             setCheckOutTime('10:00 PM');
           }
@@ -132,12 +141,12 @@ const ViewRoom = () => {
       let subtotal = room.price?.basePrice || 0;
 
       // Calculate based on room type
-      if (room.type === 'Room Stay') {
+      if (room.type === 'stay') {
         subtotal = subtotal * differenceInDays;
-      } else if (room.type === 'Conference Room') {
+      } else if (room.type === 'conference') {
         // For conference rooms, price is per day
         subtotal = subtotal * differenceInDays;
-      } else if (room.type === 'Events Place') {
+      } else if (room.type === 'event') {
         // For events, price is per event (fixed)
         subtotal = subtotal;
       }
@@ -246,7 +255,9 @@ const ViewRoom = () => {
             total: bookingDetails.total,
             roomType: room.type,
             roomImage:
-              room.images && room.images.length > 0 ? room.images[0] : null,
+              room.images && room.images.length > 0
+                ? getImageUrl(room.images[0])
+                : null,
             hostId: room.host._id,
             hostName: `${room.host.firstName} ${room.host.lastName}`,
           },
@@ -286,7 +297,7 @@ const ViewRoom = () => {
   const renderPolicies = () => {
     if (!room) return null;
 
-    if (room.type === 'Room Stay') {
+    if (room.type === 'stay') {
       return (
         <div className="space-y-6">
           <div>
@@ -297,19 +308,11 @@ const ViewRoom = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300">
               <div className="flex items-start gap-2">
                 <span className="font-medium">Check-in:</span>
-                <span>{room.policies?.checkIn || '2:00 PM'}</span>
+                <span>{room.houseRules?.checkInTime || '2:00 PM'}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="font-medium">Check-out:</span>
-                <span>{room.policies?.checkOut || '12:00 PM'}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Minimum stay:</span>
-                <span>{room.policies?.minimumStay || '1 night'}</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Maximum stay:</span>
-                <span>{room.policies?.maximumStay || '30 nights'}</span>
+                <span>{room.houseRules?.checkOutTime || '12:00 PM'}</span>
               </div>
             </div>
           </div>
@@ -320,7 +323,7 @@ const ViewRoom = () => {
               Cancellation Policy
             </h3>
             <p className="text-gray-700 dark:text-gray-300">
-              {room.policies?.cancellation ||
+              {room.houseRules?.cancellationPolicy ||
                 'Free cancellation up to 48 hours before check-in. Cancellations less than 48 hours in advance will be charged 50% of the booking amount.'}
             </p>
           </div>
@@ -331,8 +334,9 @@ const ViewRoom = () => {
               House Rules
             </h3>
             <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
-              {room.policies?.houseRules
-                ? room.policies.houseRules.map(
+              {room.houseRules?.additionalRules &&
+              room.houseRules.additionalRules.length > 0
+                ? room.houseRules.additionalRules.map(
                     (rule: string, index: number) => <li key={index}>{rule}</li>
                   )
                 : ['No smoking', 'No parties or events', 'No pets'].map(
@@ -342,7 +346,7 @@ const ViewRoom = () => {
           </div>
         </div>
       );
-    } else if (room.type === 'Conference Room') {
+    } else if (room.type === 'conference') {
       return (
         <div className="space-y-6">
           <div>
@@ -354,13 +358,8 @@ const ViewRoom = () => {
               <div className="flex items-start gap-2">
                 <span className="font-medium">Operating hours:</span>
                 <span>
-                  {room.policies?.operatingHours || '8:00 AM - 8:00 PM'}
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Available days:</span>
-                <span>
-                  {room.policies?.availableDays || 'Monday - Saturday'}
+                  {room.houseRules?.checkInTime || '8:00 AM'} -{' '}
+                  {room.houseRules?.checkOutTime || '8:00 PM'}
                 </span>
               </div>
             </div>
@@ -372,7 +371,7 @@ const ViewRoom = () => {
               Cancellation Policy
             </h3>
             <p className="text-gray-700 dark:text-gray-300">
-              {room.policies?.cancellation ||
+              {room.houseRules?.cancellationPolicy ||
                 'Free cancellation up to 24 hours before booking time. Late cancellations will be charged 50% of the booking fee.'}
             </p>
           </div>
@@ -383,10 +382,11 @@ const ViewRoom = () => {
               Room Rules
             </h3>
             <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
-              {room.policies?.rules
-                ? room.policies.rules.map((rule: string, index: number) => (
-                    <li key={index}>{rule}</li>
-                  ))
+              {room.houseRules?.additionalRules &&
+              room.houseRules.additionalRules.length > 0
+                ? room.houseRules.additionalRules.map(
+                    (rule: string, index: number) => <li key={index}>{rule}</li>
+                  )
                 : [
                     'Keep the space clean',
                     'No loud music',
@@ -396,7 +396,7 @@ const ViewRoom = () => {
           </div>
         </div>
       );
-    } else if (room.type === 'Events Place') {
+    } else if (room.type === 'event') {
       return (
         <div className="space-y-6">
           <div>
@@ -408,13 +408,8 @@ const ViewRoom = () => {
               <div className="flex items-start gap-2">
                 <span className="font-medium">Available hours:</span>
                 <span>
-                  {room.policies?.availableHours || '8:00 AM - 10:00 PM'}
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-medium">Setup time allowed:</span>
-                <span>
-                  {room.policies?.setupTime || '2 hours before event'}
+                  {room.houseRules?.checkInTime || '8:00 AM'} -{' '}
+                  {room.houseRules?.checkOutTime || '10:00 PM'}
                 </span>
               </div>
             </div>
@@ -426,7 +421,7 @@ const ViewRoom = () => {
               Cancellation Policy
             </h3>
             <p className="text-gray-700 dark:text-gray-300">
-              {room.policies?.cancellation ||
+              {room.houseRules?.cancellationPolicy ||
                 'Full refund if cancelled 14 days before the event. 50% refund if cancelled 7 days before. No refund for later cancellations.'}
             </p>
           </div>
@@ -437,10 +432,11 @@ const ViewRoom = () => {
               Venue Rules
             </h3>
             <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
-              {room.policies?.rules
-                ? room.policies.rules.map((rule: string, index: number) => (
-                    <li key={index}>{rule}</li>
-                  ))
+              {room.houseRules?.additionalRules &&
+              room.houseRules.additionalRules.length > 0
+                ? room.houseRules.additionalRules.map(
+                    (rule: string, index: number) => <li key={index}>{rule}</li>
+                  )
                 : [
                     'No confetti',
                     'No smoking indoors',
@@ -477,6 +473,15 @@ const ViewRoom = () => {
       </div>
     );
   }
+
+  const displayRoomType =
+    room.type === 'stay'
+      ? 'Room Stay'
+      : room.type === 'conference'
+      ? 'Conference Room'
+      : room.type === 'event'
+      ? 'Events Place'
+      : room.type;
 
   return (
     <div className="min-h-screen bg-light dark:bg-darkBlue text-darkBlue dark:text-light p-4 md:p-6 font-poppins">
@@ -517,7 +522,7 @@ const ViewRoom = () => {
           </div>
           <div className="flex items-center">
             <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 rounded-full text-xs font-medium">
-              {room.type}
+              {displayRoomType}
             </span>
           </div>
         </div>
@@ -530,7 +535,7 @@ const ViewRoom = () => {
             <div className="relative rounded-xl overflow-hidden aspect-[16/9] mb-6 bg-gray-200 dark:bg-gray-700">
               {room.images && room.images.length > 0 ? (
                 <img
-                  src={room.images[currentImageIndex]}
+                  src={getImageUrl(room.images[currentImageIndex])}
                   alt={`${room.title} - Image ${currentImageIndex + 1}`}
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -599,6 +604,7 @@ const ViewRoom = () => {
                   <h2 className="text-xl font-semibold mb-3">
                     About this space
                   </h2>
+
                   <div className="text-gray-700 dark:text-gray-300">
                     <p>{room.description}</p>
                   </div>
@@ -608,7 +614,7 @@ const ViewRoom = () => {
                 {room.capacity && (
                   <div className="mb-8">
                     <h2 className="text-xl font-semibold mb-3">Capacity</h2>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                    <div className="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
                       <p className="text-gray-700 dark:text-gray-300">
                         <span className="font-medium">Max guests:</span>{' '}
                         {room.capacity.maxGuests} people
@@ -625,7 +631,7 @@ const ViewRoom = () => {
                       {room.amenities.map((amenity: string, index: number) => (
                         <div
                           key={index}
-                          className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-gray-700 dark:text-gray-300">
+                          className="bg-gray-200 dark:bg-gray-800 p-3 rounded-lg text-gray-700 dark:text-gray-300">
                           {amenity}
                         </div>
                       ))}
@@ -653,7 +659,7 @@ const ViewRoom = () => {
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
                       {room.host.profileImage ? (
                         <img
-                          src={room.host.profileImage}
+                          src={getImageUrl(room.host.profileImage)}
                           alt={`${room.host.firstName} ${room.host.lastName}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -693,13 +699,12 @@ const ViewRoom = () => {
               {/* Price display */}
               <div className="flex items-baseline mb-6">
                 <span className="text-2xl font-bold">
-                  {room.price?.currency === 'PHP' ? '₱' : '$'}
-                  {room.price?.basePrice.toLocaleString()}
+                  ₱{room.price?.basePrice.toLocaleString()}
                 </span>
                 <span className="text-gray-600 dark:text-gray-400 ml-1">
-                  {room.type === 'Room Stay'
+                  {room.type === 'stay'
                     ? '/night'
-                    : room.type === 'Conference Room'
+                    : room.type === 'conference'
                     ? '/day'
                     : '/event'}
                 </span>
@@ -855,19 +860,13 @@ const ViewRoom = () => {
                   <div className="border-t border-gray-200 dark:border-gray-700 my-3 pt-3">
                     <div className="flex justify-between mb-2">
                       <span className="text-gray-600 dark:text-gray-400">
-                        {room.type === 'Events Place'
-                          ? 'Venue fee'
-                          : 'Subtotal'}
+                        {room.type === 'event' ? 'Venue fee' : 'Subtotal'}
                       </span>
-                      <span>
-                        {room.price?.currency === 'PHP' ? '₱' : '$'}
-                        {bookingDetails.subtotal.toLocaleString()}
-                      </span>
+                      <span>₱{bookingDetails.subtotal.toLocaleString()}</span>
                     </div>
+
                     <div className="flex justify-between mb-2">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Service fee
-                      </span>
+                      <span>₱{bookingDetails.serviceFee.toLocaleString()}</span>
                       <span>
                         {room.price?.currency === 'PHP' ? '₱' : '$'}
                         {bookingDetails.serviceFee.toLocaleString()}
@@ -875,10 +874,7 @@ const ViewRoom = () => {
                     </div>
                     <div className="flex justify-between font-bold border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
                       <span>Total</span>
-                      <span>
-                        {room.price?.currency === 'PHP' ? '₱' : '$'}
-                        {bookingDetails.total.toLocaleString()}
-                      </span>
+                      <span>₱{bookingDetails.total.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

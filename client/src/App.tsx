@@ -43,7 +43,6 @@ import BecomeHost from './pages/Host/BecomeHost';
 import ViewRoom from './pages/Room/ViewRoom';
 import CreateRoom from './pages/Room/CreateRoom';
 import EditRoom from './pages/Room/EditRoom';
-import DeleteRoom from './pages/Room/DeleteRoom';
 
 // Payment Pages
 import PaymentPage from './pages/Payment/PaymentPage';
@@ -121,7 +120,7 @@ const router = createBrowserRouter(
           path="/host/bookings"
           element={
             <ProtectedRoute requiredRole="host">
-              <HostBookings />
+              <HostBookings statusFilter="all" />
             </ProtectedRoute>
           }
         />
@@ -186,14 +185,6 @@ const router = createBrowserRouter(
             element={
               <ProtectedRoute requiredRole="host">
                 <EditRoom />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="delete/:roomId"
-            element={
-              <ProtectedRoute requiredRole="host">
-                <DeleteRoom />
               </ProtectedRoute>
             }
           />

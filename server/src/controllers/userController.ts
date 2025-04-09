@@ -112,16 +112,8 @@ export const updateProfile = async (
 
     const userId = currentUser._id;
 
-    const {
-      firstName,
-      lastName,
-      email,
-      phoneNumber,
-      profileImage,
-      role,
-      hostInfo,
-      address,
-    } = req.body;
+    const { firstName, lastName, phoneNumber, profileImage, hostInfo } =
+      req.body;
 
     // Check if user exists
     const user = await User.findById(userId);
@@ -136,29 +128,18 @@ export const updateProfile = async (
     // Update basic user information
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
-    if (email) user.email = email;
     if (phoneNumber) user.phoneNumber = phoneNumber;
     if (profileImage) user.profileImage = profileImage;
-    if (role) user.role = role;
-
-    // Update address if provided
-    if (address) {
-      user.address = {
-        ...user.address,
-        ...address,
-      };
-    }
 
     // Update host info if provided
-    if (hostInfo && (role === 'host' || user.role === 'host')) {
-      const currentDate = new Date();
+    if (hostInfo && (user.role === 'host' || user.role === 'admin')) {
       user.hostInfo = {
         ...user.hostInfo,
         bio: hostInfo.bio || user.hostInfo?.bio || '',
         languagesSpoken:
           hostInfo.languagesSpoken || user.hostInfo?.languagesSpoken || [],
         responseTime: hostInfo.responseTime || user.hostInfo?.responseTime,
-        hostSince: user.hostInfo?.hostSince || currentDate,
+        hostSince: user.hostInfo?.hostSince || new Date(),
       };
     }
 

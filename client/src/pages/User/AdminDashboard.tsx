@@ -588,35 +588,7 @@ const AdminDashboard = () => {
         footerContent={
           previewData?.type === 'room' &&
           previewData.data && (
-            <div className="flex w-full justify-between">
-              <div className="flex space-x-2">
-                {previewData.data.status === 'pending' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setConfirmAction({
-                          type: 'approveRoom',
-                          id: previewData.data._id,
-                        });
-                        setPreviewData(null);
-                      }}
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => {
-                        setConfirmAction({
-                          type: 'rejectRoom',
-                          id: previewData.data._id,
-                        });
-                        setPreviewData(null);
-                      }}
-                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
-                      Reject
-                    </button>
-                  </>
-                )}
-              </div>
+            <div className="flex w-full justify-end">
               <button
                 onClick={() => setPreviewData(null)}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">

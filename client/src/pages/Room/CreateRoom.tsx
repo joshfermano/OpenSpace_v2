@@ -1,6 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiMapPin, FiUsers, FiTag, FiTrash2, FiPlus } from 'react-icons/fi';
+import {
+  FiMapPin,
+  FiUsers,
+  FiTag,
+  FiTrash2,
+  FiPlus,
+  FiInfo,
+} from 'react-icons/fi';
+import { MdOutlineRule } from 'react-icons/md';
 import { FaPesoSign } from 'react-icons/fa6';
 import { roomApi } from '../../services/roomApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,6 +33,28 @@ const AMENITIES_OPTIONS = [
 
 // Room categories
 const CATEGORIES = ['Conference Room', 'Events Place', 'Room Stay'];
+
+// Common rules options based on room type
+const COMMON_RULES = {
+  stay: [
+    'No smoking inside',
+    'No parties or events',
+    'Quiet hours from 10PM to 7AM',
+    'No pets allowed',
+  ],
+  conference: [
+    'No food near equipment',
+    'Clean workspace after use',
+    'Report technical issues',
+    'Follow safety guidelines',
+  ],
+  event: [
+    'No confetti or glitter',
+    'Decorations must be approved',
+    'Music must follow local ordinances',
+    'Clean-up mandatory after event',
+  ],
+};
 
 const CreateRoom = () => {
   const navigate = useNavigate();
@@ -66,6 +96,7 @@ const CreateRoom = () => {
       checkOutTime: '12:00',
       instantBooking: false,
       cancellationPolicy: 'Standard 48-hour cancellation policy',
+      additionalRules: [] as string[],
     },
     availability: {
       startDate: new Date().toISOString().split('T')[0],
@@ -75,6 +106,10 @@ const CreateRoom = () => {
       isAlwaysAvailable: true,
     },
   });
+
+  // Rules state
+  const [rules, setRules] = useState<string[]>([]);
+  const [newRule, setNewRule] = useState('');
 
   // Image files state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -87,6 +122,17 @@ const CreateRoom = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<boolean | null>(null);
   const [submitMessage, setSubmitMessage] = useState<string>('');
+
+  // Update formData.houseRules.additionalRules whenever rules change
+  useEffect(() => {
+    setFormData((prevData) => ({
+      ...prevData,
+      houseRules: {
+        ...prevData.houseRules,
+        additionalRules: rules,
+      },
+    }));
+  }, [rules]);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -146,6 +192,13 @@ const CreateRoom = () => {
     const category = e.target.value;
     const type = categoryToType[category] || '';
 
+    // Set suggested rules based on room type
+    if (type && COMMON_RULES[type as keyof typeof COMMON_RULES]) {
+      setRules(COMMON_RULES[type as keyof typeof COMMON_RULES]);
+    } else {
+      setRules([]);
+    }
+
     setFormData({
       ...formData,
       type: type,
@@ -180,6 +233,30 @@ const CreateRoom = () => {
         amenities: '',
       });
     }
+  };
+
+  // Handle adding a new rule
+  const handleAddRule = () => {
+    if (newRule.trim()) {
+      const updatedRules = [...rules, newRule.trim()];
+      setRules(updatedRules);
+      setNewRule('');
+
+      // Also clear rules error if it exists
+      if (errors.rules) {
+        setErrors({
+          ...errors,
+          rules: '',
+        });
+      }
+    }
+  };
+
+  // Handle removing a rule
+  const handleRemoveRule = (index: number) => {
+    const updatedRules = [...rules];
+    updatedRules.splice(index, 1);
+    setRules(updatedRules);
   };
 
   // Handle image upload
@@ -342,6 +419,9 @@ const CreateRoom = () => {
     if (formData.amenities.length === 0)
       newErrors['amenities'] = 'Select at least one amenity';
 
+    // Rules validation
+    if (rules.length === 0) newErrors['rules'] = 'Add at least one house rule';
+
     // Images validation
     if (imageFiles.length === 0)
       newErrors['images'] = 'Upload at least one image';
@@ -361,7 +441,13 @@ const CreateRoom = () => {
     setSubmitMessage('');
 
     try {
-      // First, create the room
+      // The formData already has the rules in houseRules.additionalRules due to the useEffect
+      console.log(
+        'Submitting data with rules:',
+        formData.houseRules.additionalRules
+      );
+
+      // Create the room
       const roomResponse = await roomApi.createRoom(formData);
 
       if (!roomResponse.success) {
@@ -400,7 +486,7 @@ const CreateRoom = () => {
 
       // Redirect after short delay
       setTimeout(() => {
-        navigate('/dashboard/host/listings');
+        navigate('/dashboard');
       }, 2000);
     } catch (error: any) {
       console.error('Error creating room:', error);
@@ -824,7 +910,7 @@ const CreateRoom = () => {
             )}
           </div>
 
-          {/* House Rules Section */}
+          {/* Booking Details Section */}
           <div className="bg-light dark:bg-gray-800 rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold mb-4 text-gray-800 dark:text-light">
               Booking Details
@@ -885,6 +971,96 @@ const CreateRoom = () => {
                   placeholder="Describe your cancellation policy..."
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Rules Section */}
+          <div className="bg-light dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-light flex items-center">
+                <MdOutlineRule className="mr-2 text-blue-500" size={20} />
+                Rules & Policies
+              </h2>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {rules.length} rules
+              </div>
+            </div>
+
+            {errors.rules && (
+              <p className="mb-3 text-sm text-red-600 dark:text-red-400">
+                {errors.rules}
+              </p>
+            )}
+
+            {/* Rules List */}
+            <div className="mb-6">
+              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg mb-4">
+                <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                  {rules.length > 0 ? (
+                    rules.map((rule, index) => (
+                      <li
+                        key={index}
+                        className="flex items-center justify-between">
+                        <span>{rule}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRule(index)}
+                          className="text-red-500 hover:text-red-700 dark:hover:text-red-300"
+                          aria-label="Remove rule">
+                          <FiTrash2 size={16} />
+                        </button>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500 dark:text-gray-400">
+                      No rules added yet. Please add some rules for your space.
+                    </li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Add New Rule */}
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newRule}
+                  onChange={(e) => setNewRule(e.target.value)}
+                  placeholder="Add a new rule..."
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddRule}
+                  disabled={!newRule.trim()}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors">
+                  Add Rule
+                </button>
+              </div>
+            </div>
+
+            {/* Current Rules Display - Debug */}
+            <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-medium mb-1">
+                Current rules to be saved:
+              </p>
+              <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-400">
+                {formData.houseRules.additionalRules.map((rule, idx) => (
+                  <li key={idx}>{rule}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Policy Info */}
+            <div className="flex items-start bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-blue-700 dark:text-blue-300 mt-6">
+              <FiInfo className="mt-1 mr-3 flex-shrink-0" size={18} />
+              <p className="text-sm">
+                Setting clear rules helps manage guest expectations and protects
+                your space. Rules should be relevant to your space type: for
+                Room Stays consider quiet hours and shared spaces; for
+                Conference Rooms, equipment usage and clean-up expectations; for
+                Event Spaces, noise restrictions and decoration guidelines.
+              </p>
             </div>
           </div>
 

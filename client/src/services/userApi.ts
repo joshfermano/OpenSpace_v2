@@ -1,4 +1,18 @@
 import { API_URL, fetchWithAuth } from './core';
+interface UpdateProfileData {
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  profileImage: string;
+  hostInfo?: {
+    bio: string;
+    languagesSpoken: string[];
+    responseTime: number; // Changed from string to number
+    responseRate?: number;
+    acceptanceRate?: number;
+    hostSince?: Date;
+  };
+}
 
 export const userApi = {
   getUserDashboard: async () => {
@@ -43,13 +57,26 @@ export const userApi = {
     }
   },
 
-  updateUserProfile: async (profileData: any) => {
+  updateUserProfile: async (profileData: UpdateProfileData) => {
     try {
       const response = await fetchWithAuth('/api/users/edit-profile', {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(profileData),
       });
+
       const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Profile update failed:', data);
+        return {
+          success: false,
+          message: data.message || 'Failed to update profile',
+        };
+      }
+
       return data;
     } catch (error) {
       console.error('Error updating user profile:', error);
