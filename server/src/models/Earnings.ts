@@ -1,5 +1,4 @@
 import mongoose, { Document, Schema } from 'mongoose';
-
 export interface IEarning extends Document {
   host: mongoose.Types.ObjectId;
   booking: mongoose.Types.ObjectId;
@@ -7,7 +6,7 @@ export interface IEarning extends Document {
   platformFee: number;
   hostPayout: number;
   status: 'pending' | 'available' | 'paid_out';
-  paymentMethod: 'property' | 'card';
+  paymentMethod: 'property' | 'card' | 'gcash' | 'maya';
   availableDate: Date;
   paidOutAt?: Date;
   payoutId?: string;
@@ -46,8 +45,7 @@ const earningSchema = new Schema<IEarning>(
     },
     paymentMethod: {
       type: String,
-      enum: ['property', 'card'],
-      default: 'property',
+      enum: ['property', 'card', 'gcash', 'maya'],
       required: true,
     },
     availableDate: {
@@ -59,14 +57,6 @@ const earningSchema = new Schema<IEarning>(
     },
     payoutId: {
       type: String,
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-    updatedAt: {
-      type: Date,
-      default: Date.now,
     },
   },
   {

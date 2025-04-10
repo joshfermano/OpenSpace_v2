@@ -25,8 +25,30 @@ interface BookingCardProps {
   onConfirmBooking: (id: string) => void;
   onRejectBooking: (id: string) => void;
   onCompleteBooking: (id: string) => void;
+  onMarkPaymentReceived: (id: string) => void;
   onViewReceipt: (booking: Booking) => void;
 }
+
+const convertTo12Hour = (time24: string): string => {
+  if (!time24) return '';
+
+  if (time24.includes('AM') || time24.includes('PM')) {
+    return time24;
+  }
+
+  const [hours, minutes] = time24.split(':');
+  const hour = parseInt(hours, 10);
+
+  if (hour === 0) {
+    return `12:${minutes} AM`;
+  } else if (hour < 12) {
+    return `${hour}:${minutes} AM`;
+  } else if (hour === 12) {
+    return `12:${minutes} PM`;
+  } else {
+    return `${hour - 12}:${minutes} PM`;
+  }
+};
 
 const BookingCard = ({
   booking,
@@ -34,8 +56,26 @@ const BookingCard = ({
   onConfirmBooking,
   onRejectBooking,
   onCompleteBooking,
+  onMarkPaymentReceived,
   onViewReceipt,
 }: BookingCardProps) => {
+  // Use the actual booking time values first, and only fall back to defaults if they don't exist
+  const checkInTime = booking.checkInTime
+    ? convertTo12Hour(booking.checkInTime)
+    : booking.room.type === 'stay'
+    ? '2:00 PM'
+    : booking.room.type === 'conference'
+    ? '8:00 AM'
+    : '10:00 AM';
+
+  const checkOutTime = booking.checkOutTime
+    ? convertTo12Hour(booking.checkOutTime)
+    : booking.room.type === 'stay'
+    ? '12:00 PM'
+    : booking.room.type === 'conference'
+    ? '5:00 PM'
+    : '10:00 PM';
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
       <div className="p-6">
@@ -88,8 +128,7 @@ const BookingCard = ({
                     Time
                   </p>
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {booking.checkInTime || '2:00 PM'} -{' '}
-                    {booking.checkOutTime || '12:00 PM'}
+                    {checkInTime} - {checkOutTime}
                   </p>
                 </div>
               </div>
@@ -158,6 +197,7 @@ const BookingCard = ({
           onConfirmBooking={onConfirmBooking}
           onRejectBooking={onRejectBooking}
           onCompleteBooking={onCompleteBooking}
+          onMarkPaymentReceived={onMarkPaymentReceived}
           onViewReceipt={() => onViewReceipt(booking)}
         />
       </div>
@@ -174,6 +214,7 @@ interface BookingActionsProps {
   onConfirmBooking: (id: string) => void;
   onRejectBooking: (id: string) => void;
   onCompleteBooking: (id: string) => void;
+  onMarkPaymentReceived: (id: string) => void;
   onViewReceipt: () => void;
 }
 
@@ -183,8 +224,11 @@ const BookingActions = ({
   onConfirmBooking,
   onRejectBooking,
   onCompleteBooking,
+  onMarkPaymentReceived,
   onViewReceipt,
 }: BookingActionsProps) => {
+  const isProcessing = processingAction?.id === booking._id;
+
   return (
     <div className="flex flex-wrap justify-end gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
       <button
@@ -197,16 +241,14 @@ const BookingActions = ({
         <>
           <button
             onClick={() => onConfirmBooking(booking._id)}
-            disabled={processingAction?.id === booking._id}
+            disabled={isProcessing}
             className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center transition-colors
               ${
-                processingAction?.id === booking._id &&
-                processingAction?.action === 'confirm'
+                isProcessing && processingAction?.action === 'confirm'
                   ? 'opacity-75'
                   : ''
               }`}>
-            {processingAction?.id === booking._id &&
-            processingAction?.action === 'confirm' ? (
+            {isProcessing && processingAction?.action === 'confirm' ? (
               <>
                 <FiRefreshCw className="mr-2 animate-spin" /> Confirming...
               </>
@@ -219,16 +261,14 @@ const BookingActions = ({
 
           <button
             onClick={() => onRejectBooking(booking._id)}
-            disabled={processingAction?.id === booking._id}
+            disabled={isProcessing}
             className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center transition-colors
               ${
-                processingAction?.id === booking._id &&
-                processingAction?.action === 'reject'
+                isProcessing && processingAction?.action === 'reject'
                   ? 'opacity-75'
                   : ''
               }`}>
-            {processingAction?.id === booking._id &&
-            processingAction?.action === 'reject' ? (
+            {isProcessing && processingAction?.action === 'reject' ? (
               <>
                 <FiRefreshCw className="mr-2 animate-spin" /> Rejecting...
               </>
@@ -244,11 +284,14 @@ const BookingActions = ({
       {booking.bookingStatus === 'confirmed' && (
         <button
           onClick={() => onCompleteBooking(booking._id)}
-          disabled={processingAction?.id === booking._id}
+          disabled={isProcessing}
           className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors
-            ${processingAction?.id === booking._id ? 'opacity-75' : ''}`}>
-          {processingAction?.id === booking._id &&
-          processingAction?.action === 'complete' ? (
+            ${
+              isProcessing && processingAction?.action === 'complete'
+                ? 'opacity-75'
+                : ''
+            }`}>
+          {isProcessing && processingAction?.action === 'complete' ? (
             <>
               <FiRefreshCw className="mr-2 animate-spin" /> Completing...
             </>
@@ -264,11 +307,15 @@ const BookingActions = ({
         booking.paymentStatus === 'pending' &&
         booking.bookingStatus === 'confirmed' && (
           <button
-            onClick={() => onCompleteBooking(booking._id)}
-            disabled={processingAction?.id === booking._id}
+            onClick={() => onMarkPaymentReceived(booking._id)}
+            disabled={isProcessing}
             className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center transition-colors
-            ${processingAction?.id === booking._id ? 'opacity-75' : ''}`}>
-            {processingAction?.id === booking._id ? (
+            ${
+              isProcessing && processingAction?.action === 'mark-paid'
+                ? 'opacity-75'
+                : ''
+            }`}>
+            {isProcessing && processingAction?.action === 'mark-paid' ? (
               <>
                 <FiRefreshCw className="mr-2 animate-spin" /> Processing...
               </>

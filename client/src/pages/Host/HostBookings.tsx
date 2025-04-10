@@ -12,6 +12,7 @@ import { Booking } from '../../types/booking';
 import BookingsFilter from '../../components/Host/BookingsFilter';
 import BookingsList from '../../components/Host/BookingsList';
 import ReceiptModal from '../../components/Host/ReceiptModal';
+import { toast } from 'react-toastify';
 
 const HostBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -59,11 +60,14 @@ const HostBookings = () => {
     try {
       const response = await bookingApi.confirmBooking(bookingId);
       if (response.success) {
+        toast.success('Booking confirmed successfully');
         fetchBookings();
       } else {
+        toast.error(response.message || 'Failed to confirm booking');
         console.error('Failed to confirm booking:', response.message);
       }
     } catch (error) {
+      toast.error('Network error while confirming booking');
       console.error('Error confirming booking:', error);
     } finally {
       setProcessingAction(null);
@@ -73,17 +77,19 @@ const HostBookings = () => {
   const handleRejectBooking = async (bookingId: string) => {
     setProcessingAction({ id: bookingId, action: 'reject' });
     try {
-      // In a real app, you might want to prompt the user for a reason
-      const response = await bookingApi.cancelBooking(
+      const response = await bookingApi.rejectBooking(
         bookingId,
         'Rejected by host'
       );
       if (response.success) {
+        toast.success('Booking rejected successfully');
         fetchBookings();
       } else {
+        toast.error(response.message || 'Failed to reject booking');
         console.error('Failed to reject booking:', response.message);
       }
     } catch (error) {
+      toast.error('Network error while rejecting booking');
       console.error('Error rejecting booking:', error);
     } finally {
       setProcessingAction(null);
@@ -95,12 +101,34 @@ const HostBookings = () => {
     try {
       const response = await bookingApi.completeBooking(bookingId);
       if (response.success) {
+        toast.success('Booking marked as completed');
         fetchBookings();
       } else {
+        toast.error(response.message || 'Failed to complete booking');
         console.error('Failed to complete booking:', response.message);
       }
     } catch (error) {
+      toast.error('Network error while completing booking');
       console.error('Error completing booking:', error);
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  const handleMarkPaymentReceived = async (bookingId: string) => {
+    setProcessingAction({ id: bookingId, action: 'mark-paid' });
+    try {
+      const response = await bookingApi.markPaymentReceived(bookingId);
+      if (response.success) {
+        toast.success('Payment marked as received');
+        fetchBookings();
+      } else {
+        toast.error(response.message || 'Failed to mark payment as received');
+        console.error('Failed to mark payment as received:', response.message);
+      }
+    } catch (error) {
+      toast.error('Network error while marking payment as received');
+      console.error('Error marking payment as received:', error);
     } finally {
       setProcessingAction(null);
     }
@@ -172,6 +200,7 @@ const HostBookings = () => {
               onConfirmBooking={handleConfirmBooking}
               onRejectBooking={handleRejectBooking}
               onCompleteBooking={handleCompleteBooking}
+              onMarkPaymentReceived={handleMarkPaymentReceived}
               onViewReceipt={handleViewReceipt}
             />
           )}

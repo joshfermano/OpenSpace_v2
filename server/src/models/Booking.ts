@@ -6,6 +6,8 @@ export interface IBooking extends Document {
   host: mongoose.Types.ObjectId;
   checkIn: Date;
   checkOut: Date;
+  checkInTime: string;
+  checkOutTime: string;
   guests: {
     adults: number;
     children?: number;
@@ -78,6 +80,14 @@ const bookingSchema = new Schema<IBooking>(
     checkOut: {
       type: Date,
       required: [true, 'Check-out date is required'],
+    },
+    checkInTime: {
+      type: String,
+      default: '14:00',
+    },
+    checkOutTime: {
+      type: String,
+      default: '12:00',
     },
     guests: {
       adults: {

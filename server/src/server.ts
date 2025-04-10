@@ -17,6 +17,7 @@ import bookingRoutes from './routes/bookingRoutes';
 import reviewRoutes from './routes/reviewRoutes';
 import earningsRoutes from './routes/earningsRoutes';
 import emailVerificationRoutes from './routes/emailVerificationRoutes';
+import adminEarningsRoutes from './routes/adminEarningsRoutes';
 
 // Create Express app
 const app: Application = express();
@@ -61,6 +62,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/earnings', earningsRoutes);
 app.use('/api/email-verification', emailVerificationRoutes);
+app.use('/api/admin/earnings', adminEarningsRoutes);
 
 // Health check route
 app.get('/api/health', (_req, res) => {

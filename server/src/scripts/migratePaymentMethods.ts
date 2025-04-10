@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 import Booking from '../models/Booking';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 async function migratePaymentMethods() {
   try {

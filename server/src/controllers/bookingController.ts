@@ -159,6 +159,8 @@ export const createBooking = async (
       roomId,
       checkIn,
       checkOut,
+      checkInTime, // Extract check-in time from request
+      checkOutTime, // Extract check-out time from request
       guests,
       totalPrice,
       priceBreakdown,
@@ -192,13 +194,27 @@ export const createBooking = async (
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
 
-    // Create the booking
+    // Determine proper check-in and check-out times based on room type
+    // For 'stay' type, use the room's defined times
+    // For 'conference' and 'event', use the user-selected times
+    let finalCheckInTime = room.houseRules.checkInTime; // Default from room
+    let finalCheckOutTime = room.houseRules.checkOutTime; // Default from room
+
+    if (room.type !== 'stay') {
+      // For conference and event types, use the times provided in the request
+      if (checkInTime) finalCheckInTime = checkInTime;
+      if (checkOutTime) finalCheckOutTime = checkOutTime;
+    }
+
+    // Create the booking with proper times
     const booking = await Booking.create({
       room: roomId,
       user: userId,
       host: room.host,
       checkIn: checkInDate,
       checkOut: checkOutDate,
+      checkInTime: finalCheckInTime, // Save the determined check-in time
+      checkOutTime: finalCheckOutTime, // Save the determined check-out time
       guests: {
         adults: Number(guests),
       },
@@ -452,33 +468,59 @@ const simpleCardValidation = (cardNumber: string): boolean => {
   return sum % 10 === 0;
 };
 
-// Create earning record for the host when a booking is paid
-const createEarningRecord = async (booking: any): Promise<void> => {
+const createEarningRecord = async (booking: any): Promise<any> => {
   try {
-    const hostEarningPercentage = 0.8;
-    const platformFeePercentage = 0.2;
+    const hostEarningPercentage = 0.8; // Host gets 80%
+    const platformFeePercentage = 0.2; // Platform fee is 20%
 
-    const hostEarnings = booking.totalPrice * hostEarningPercentage;
-    const platformFee = booking.totalPrice * platformFeePercentage;
+    const amount = booking.totalPrice;
+    const platformFee = amount * platformFeePercentage;
+    const hostPayout = amount * hostEarningPercentage;
 
-    await Earning.create({
+    // Set the status and date based on payment method
+    let status = 'pending';
+    let availableDate = new Date();
+
+    // Different logic based on payment method
+    if (['card', 'gcash', 'maya'].includes(booking.paymentMethod)) {
+      // For online payments (card, gcash, maya), earnings become immediately available
+      status = 'available';
+      availableDate = new Date(); // Available immediately
+    } else if (booking.paymentMethod === 'property') {
+      // For pay at property, it remains pending until host marks booking as completed
+      status = 'pending';
+      // Set to far future as placeholder (will be updated when completed)
+      availableDate = new Date();
+      availableDate.setFullYear(availableDate.getFullYear() + 1);
+    }
+
+    // Check if an earnings record already exists (avoid duplicates)
+    const existingEarning = await Earning.findOne({ booking: booking._id });
+
+    if (existingEarning) {
+      console.log(`Earnings record already exists for booking ${booking._id}`);
+      return existingEarning;
+    }
+
+    // Create the earnings record
+    const earningRecord = await Earning.create({
       host: booking.host,
       booking: booking._id,
-      room: booking.room,
-      amount: hostEarnings,
+      amount,
       platformFee,
-      totalAmount: booking.totalPrice,
-      status: 'pending', // Will be paid out later
-      paymentDate: booking.paymentDetails?.paymentDate,
-      description: `Earnings from booking #${booking._id}`,
+      hostPayout,
+      status,
+      paymentMethod: booking.paymentMethod,
+      availableDate,
     });
 
     console.log(
-      `Earnings record created for host ${booking.host} - Amount: ${hostEarnings}`
+      `Earnings record created for host ${booking.host} - Amount: ${hostPayout}, Status: ${status}`
     );
+
+    return earningRecord;
   } catch (error) {
     console.error('Error creating earnings record:', error);
-    // Don't throw here - just log the error as this shouldn't block the booking process
   }
 };
 

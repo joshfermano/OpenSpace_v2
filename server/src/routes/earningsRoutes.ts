@@ -13,6 +13,16 @@ router.get('/summary', earningsController.getEarningsSummary);
 router.get('/date-range', earningsController.getEarningsByDateRange);
 router.get('/statement/:year', earningsController.generateEarningsStatement);
 router.get('/booking/:bookingId', earningsController.getBookingEarnings);
+router.get('/withdrawals', earningsController.getWithdrawalHistory);
+
+// Mark booking as completed (for pay-at-property bookings)
+router.patch(
+  '/complete-booking/:bookingId',
+  earningsController.markBookingCompleted
+);
+
+// Process withdrawal
+router.post('/withdraw', earningsController.processWithdrawal);
 
 // Admin routes
 router.use('/admin', adminOnly);

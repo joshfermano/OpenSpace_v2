@@ -4,9 +4,13 @@ import { ChartConfiguration } from 'chart.js';
 
 interface EarningsChartProps {
   dateRange: string;
+  chartData: any;
 }
 
-const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
+const EarningsChart: React.FC<EarningsChartProps> = ({
+  dateRange,
+  chartData,
+}) => {
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
 
@@ -14,30 +18,103 @@ const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
     let labels: string[] = [];
     let data: number[] = [];
 
-    if (dateRange === 'week') {
-      labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      data = [1200, 900, 1500, 800, 2300, 1700, 1100];
-    } else if (dateRange === 'month') {
-      labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'];
-      data = [5500, 4200, 6800, 7300, 3600];
-    } else if (dateRange === 'year') {
-      labels = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      data = [
-        2100, 2400, 3200, 3800, 4200, 4800, 5500, 5900, 4500, 3900, 3400, 2800,
-      ];
+    if (chartData && chartData.earnings && chartData.earnings.length > 0) {
+      // Use real data if available
+      if (dateRange === 'week') {
+        // Group by days of the week
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dayTotals = Array(7).fill(0);
+
+        chartData.earnings.forEach((earning: any) => {
+          const date = new Date(earning.createdAt);
+          const dayIndex = date.getDay();
+          dayTotals[dayIndex] += earning.hostPayout;
+        });
+
+        labels = days;
+        data = dayTotals;
+      } else if (dateRange === 'month') {
+        // Group by weeks
+        const weeklyData: Record<string, number> = {};
+        const now = new Date();
+
+        // Initialize 4 weeks
+        for (let i = 0; i < 4; i++) {
+          const weekLabel = `Week ${4 - i}`;
+          weeklyData[weekLabel] = 0;
+        }
+
+        chartData.earnings.forEach((earning: any) => {
+          const date = new Date(earning.createdAt);
+          const daysSinceToday = Math.floor(
+            (now.getTime() - date.getTime()) / (24 * 60 * 60 * 1000)
+          );
+          const weekNum = Math.min(4, Math.floor(daysSinceToday / 7) + 1);
+
+          if (weekNum <= 4) {
+            const weekLabel = `Week ${weekNum}`;
+            weeklyData[weekLabel] =
+              (weeklyData[weekLabel] || 0) + earning.hostPayout;
+          }
+        });
+
+        labels = Object.keys(weeklyData).reverse();
+        data = labels.map((label) => weeklyData[label]);
+      } else if (dateRange === 'year') {
+        // Group by months
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+        const monthlyTotals = Array(12).fill(0);
+
+        chartData.earnings.forEach((earning: any) => {
+          const date = new Date(earning.createdAt);
+          const monthIndex = date.getMonth();
+          monthlyTotals[monthIndex] += earning.hostPayout;
+        });
+
+        labels = months;
+        data = monthlyTotals;
+      }
+    } else {
+      // Fallback to mock data if no real data is available
+      if (dateRange === 'week') {
+        labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        data = [500, 1200, 900, 1500, 800, 2300, 1700];
+      } else if (dateRange === 'month') {
+        labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+        data = [3500, 4200, 6800, 5300];
+      } else if (dateRange === 'year') {
+        labels = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+        data = [
+          2100, 2400, 3200, 3800, 4200, 4800, 5500, 5900, 4500, 3900, 3400,
+          2800,
+        ];
+      }
     }
 
     return { labels, data };
@@ -50,11 +127,10 @@ const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
   ): ChartConfiguration => {
     const textColor = isDarkMode
       ? 'rgba(255, 255, 255, 0.9)'
-      : 'rgba(17, 24, 39, 1)'; // gray-900 for better visibility in light mode
-
+      : 'rgba(17, 24, 39, 1)';
     const gridColor = isDarkMode
       ? 'rgba(255, 255, 255, 0.2)'
-      : 'rgba(75, 85, 99, 0.2)'; // gray-600 with opacity
+      : 'rgba(75, 85, 99, 0.2)';
 
     return {
       type: 'bar',
@@ -65,11 +141,11 @@ const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
             label: 'Earnings',
             data,
             backgroundColor: isDarkMode
-              ? 'rgba(59, 130, 246, 0.6)' // blue-500 with opacity
-              : 'rgba(37, 99, 235, 0.7)', // blue-600 with opacity
+              ? 'rgba(59, 130, 246, 0.6)'
+              : 'rgba(37, 99, 235, 0.7)',
             borderColor: isDarkMode
-              ? 'rgba(59, 130, 246, 1)' // blue-500
-              : 'rgba(29, 78, 216, 1)', // blue-700
+              ? 'rgba(59, 130, 246, 1)'
+              : 'rgba(29, 78, 216, 1)',
             borderWidth: 1,
             borderRadius: 4,
             maxBarThickness: 40,
@@ -114,7 +190,7 @@ const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
             ticks: {
               color: textColor,
               font: {
-                weight: 600,
+                weight: '600',
                 size: 12,
                 family: 'system-ui',
               },
@@ -137,7 +213,7 @@ const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
             ticks: {
               color: textColor,
               font: {
-                weight: 600,
+                weight: '600',
                 size: 12,
                 family: 'system-ui',
               },
@@ -185,7 +261,7 @@ const EarningsChart: React.FC<EarningsChartProps> = ({ dateRange }) => {
       }
       mediaQuery.removeEventListener('change', handleThemeChange);
     };
-  }, [dateRange]);
+  }, [dateRange, chartData]);
 
   return <canvas ref={chartRef} />;
 };

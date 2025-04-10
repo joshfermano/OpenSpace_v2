@@ -102,7 +102,6 @@ const ViewAllBookings = () => {
     sortOption: SortOption
   ): Booking[] => {
     return [...bookingsToSort].sort((a, b) => {
-      // Primary sort by check-in date
       const dateA = new Date(a.startDate).getTime();
       const dateB = new Date(b.startDate).getTime();
 

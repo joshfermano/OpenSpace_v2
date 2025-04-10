@@ -53,6 +53,41 @@ const COMMON_RULES = {
   ],
 };
 
+// Helper function to convert 24h format to 12h format
+const convertTo12Hour = (time24: string): string => {
+  if (!time24) return '';
+
+  const [hours, minutes] = time24.split(':');
+  const hour = parseInt(hours, 10);
+
+  if (hour === 0) {
+    return `12:${minutes} AM`;
+  } else if (hour < 12) {
+    return `${hour}:${minutes} AM`;
+  } else if (hour === 12) {
+    return `12:${minutes} PM`;
+  } else {
+    return `${hour - 12}:${minutes} PM`;
+  }
+};
+
+// Helper function to convert 12h format string to 24h format
+const convertTo24Hour = (time12: string): string => {
+  if (!time12) return '';
+
+  const [timePart, modifier] = time12.split(' ');
+  let [hours, minutes] = timePart.split(':');
+  let hour = parseInt(hours, 10);
+
+  if (modifier === 'PM' && hour < 12) {
+    hour += 12;
+  } else if (modifier === 'AM' && hour === 12) {
+    hour = 0;
+  }
+
+  return `${hour.toString().padStart(2, '0')}:${minutes}`;
+};
+
 const CreateRoom = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,8 +123,8 @@ const CreateRoom = () => {
     },
     amenities: [] as string[],
     houseRules: {
-      checkInTime: '14:00',
-      checkOutTime: '12:00',
+      checkInTime: '14:00', // Default 24-hour format for backend
+      checkOutTime: '12:00', // Default 24-hour format for backend
       instantBooking: false,
       cancellationPolicy: 'Standard 48-hour cancellation policy',
       additionalRules: [] as string[],
@@ -101,6 +136,12 @@ const CreateRoom = () => {
         .split('T')[0],
       isAlwaysAvailable: true,
     },
+  });
+
+  // Display state for 12-hour format time
+  const [displayTimes, setDisplayTimes] = useState({
+    checkInTime: '2:00 PM', // Default display format
+    checkOutTime: '12:00 PM', // Default display format
   });
 
   // Rules state
@@ -180,6 +221,36 @@ const CreateRoom = () => {
     }
   };
 
+  // Handle time input changes specifically to update both the 24h backend format and 12h display format
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const fieldName = name.split('.')[1]; // Extract checkInTime or checkOutTime
+
+    // Store the 24-hour format in formData for submission
+    setFormData((prev) => ({
+      ...prev,
+      houseRules: {
+        ...prev.houseRules,
+        [fieldName]: value,
+      },
+    }));
+
+    // Convert to 12-hour format for display
+    const time12 = convertTo12Hour(value);
+    setDisplayTimes((prev) => ({
+      ...prev,
+      [fieldName]: time12,
+    }));
+
+    // Clear errors
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: '',
+      });
+    }
+  };
+
   // For handling type selection (mapping to backend types)
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const categoryToType: Record<string, string> = {
@@ -198,10 +269,31 @@ const CreateRoom = () => {
       setRules([]);
     }
 
-    setFormData({
-      ...formData,
-      type: type,
-    });
+    // For Room Stay, set default check-in/check-out times
+    if (type === 'stay') {
+      const defaultCheckIn = '14:00'; // 2:00 PM
+      const defaultCheckOut = '12:00'; // 12:00 PM
+
+      setFormData((prev) => ({
+        ...prev,
+        type: type,
+        houseRules: {
+          ...prev.houseRules,
+          checkInTime: defaultCheckIn,
+          checkOutTime: defaultCheckOut,
+        },
+      }));
+
+      setDisplayTimes({
+        checkInTime: '2:00 PM',
+        checkOutTime: '12:00 PM',
+      });
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        type: type,
+      }));
+    }
 
     if (errors.type) {
       setErrors({
@@ -455,6 +547,13 @@ const CreateRoom = () => {
     if (imageFiles.length === 0)
       newErrors['images'] = 'Upload at least one image';
 
+    // Time validation
+    if (!formData.houseRules.checkInTime)
+      newErrors['houseRules.checkInTime'] = 'Check-in time is required';
+
+    if (!formData.houseRules.checkOutTime)
+      newErrors['houseRules.checkOutTime'] = 'Check-out time is required';
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -531,6 +630,23 @@ const CreateRoom = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Get room type label based on the selected type
+  const getRoomTypeLabel = () => {
+    switch (formData.type) {
+      case 'stay':
+        return 'Room Stay';
+      case 'conference':
+        return 'Conference Room';
+      case 'event':
+        return 'Events Place';
+      default:
+        return '';
+    }
+  };
+
+  // Check if room is a stay type (to handle fixed check-in/out times)
+  const isRoomStay = formData.type === 'stay';
 
   return (
     <section className="min-h-screen bg-light dark:bg-darkBlue">
@@ -1009,6 +1125,18 @@ const CreateRoom = () => {
               Booking Details
             </h2>
 
+            {isRoomStay && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mb-4 text-yellow-800 dark:text-yellow-300">
+                <div className="flex items-start">
+                  <FiInfo className="mt-1 mr-2 flex-shrink-0" />
+                  <p className="text-sm">
+                    For Room Stay listings, check-in and check-out times are
+                    fixed to provide guests with a consistent experience.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Check-in Time */}
               <div>
@@ -1022,10 +1150,21 @@ const CreateRoom = () => {
                   id="houseRules.checkInTime"
                   name="houseRules.checkInTime"
                   value={formData.houseRules.checkInTime}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                  onChange={handleTimeChange}
+                  disabled={isRoomStay}
+                  className={`w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors
+                  ${isRoomStay ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
+                {errors['houseRules.checkInTime'] && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors['houseRules.checkInTime']}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Displayed as: {displayTimes.checkInTime}
+                  {isRoomStay && ' (Fixed for Room Stay listings)'}
+                </p>
               </div>
 
               {/* Check-out Time */}
@@ -1040,10 +1179,21 @@ const CreateRoom = () => {
                   id="houseRules.checkOutTime"
                   name="houseRules.checkOutTime"
                   value={formData.houseRules.checkOutTime}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                  onChange={handleTimeChange}
+                  disabled={isRoomStay}
+                  className={`w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors
+                  ${isRoomStay ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
+                {errors['houseRules.checkOutTime'] && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors['houseRules.checkOutTime']}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Displayed as: {displayTimes.checkOutTime}
+                  {isRoomStay && ' (Fixed for Room Stay listings)'}
+                </p>
               </div>
 
               {/* Cancellation Policy */}

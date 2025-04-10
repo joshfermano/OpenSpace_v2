@@ -160,22 +160,38 @@ const BookingPanel = ({
       const formattedCheckInDate = formatDate(dateRange[0]);
       const formattedCheckOutDate = formatDate(dateRange[1]);
 
-      // Redirect to payment page with booking details
+      // Always pass the selected or default times for the booking
+      const finalCheckInTime =
+        checkInTime ||
+        (room.type === 'stay'
+          ? room.houseRules?.checkInTime || '2:00 PM'
+          : room.type === 'conference'
+          ? '8:00 AM'
+          : '10:00 AM');
+
+      const finalCheckOutTime =
+        checkOutTime ||
+        (room.type === 'stay'
+          ? room.houseRules?.checkOutTime || '12:00 PM'
+          : room.type === 'conference'
+          ? '5:00 PM'
+          : '10:00 PM');
+
       navigate('/payment', {
         state: {
           bookingDetails: {
             roomId,
             roomName: room.title,
+            roomType: room.type, // Add room type to use in payment page
             location: `${room.location.city}, ${room.location.country}`,
             checkInDate: formattedCheckInDate,
             checkOutDate: formattedCheckOutDate,
-            checkInTime: checkInTime,
-            checkOutTime: checkOutTime,
+            checkInTime: finalCheckInTime,
+            checkOutTime: finalCheckOutTime,
             numberOfDays: bookingDetails.numberOfDays,
             subtotal: bookingDetails.subtotal,
             serviceFee: bookingDetails.serviceFee,
             total: bookingDetails.total,
-            roomType: room.type,
             roomImage:
               room.images && room.images.length > 0 ? room.images[0] : null,
             hostId: room.host._id,
@@ -185,7 +201,6 @@ const BookingPanel = ({
       });
     }
   };
-
   // Format date to display
   const formatDate = (date: Date | null) => {
     if (!date) return '';

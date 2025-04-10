@@ -196,8 +196,12 @@ const PaymentPage = () => {
     const checkIn = new Date(bookingDetails.checkInDate);
     const checkOut = new Date(bookingDetails.checkOutDate);
 
-    // Set times if provided
+    // Convert 12-hour format times to 24-hour format for the backend
+    let checkInTime = null;
+    let checkOutTime = null;
+
     if (bookingDetails.checkInTime) {
+      // Parse and format the check-in time
       const timeMatch = bookingDetails.checkInTime.match(
         /(\d+):(\d+)\s*([APap][Mm])/
       );
@@ -206,11 +210,14 @@ const PaymentPage = () => {
         let hour = parseInt(hours);
         if (period.toUpperCase() === 'PM' && hour < 12) hour += 12;
         if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
-        checkIn.setHours(hour, parseInt(minutes));
+
+        // Format as 24-hour time string (HH:MM)
+        checkInTime = `${hour.toString().padStart(2, '0')}:${minutes}`;
       }
     }
 
     if (bookingDetails.checkOutTime) {
+      // Parse and format the check-out time
       const timeMatch = bookingDetails.checkOutTime.match(
         /(\d+):(\d+)\s*([APap][Mm])/
       );
@@ -219,23 +226,27 @@ const PaymentPage = () => {
         let hour = parseInt(hours);
         if (period.toUpperCase() === 'PM' && hour < 12) hour += 12;
         if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
-        checkOut.setHours(hour, parseInt(minutes));
+
+        // Format as 24-hour time string (HH:MM)
+        checkOutTime = `${hour.toString().padStart(2, '0')}:${minutes}`;
       }
     }
 
-    // Booking data structure
+    // Booking data structure with the parsed times
     const bookingData = {
       roomId: bookingDetails.roomId,
       checkIn: checkIn.toISOString(),
       checkOut: checkOut.toISOString(),
+      checkInTime: checkInTime,
+      checkOutTime: checkOutTime,
       guests: Number(formData.guestCount),
       totalPrice: bookingDetails.total,
       priceBreakdown: {
         basePrice: bookingDetails.subtotal,
         serviceFee: bookingDetails.serviceFee,
       },
-      paymentMethod: paymentMethod, // Use the payment method directly
       specialRequests: formData.specialRequests,
+      paymentMethod: paymentMethod,
     };
 
     console.log('Sending booking data with payment method:', paymentMethod);

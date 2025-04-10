@@ -43,6 +43,8 @@ export const earningsApi = {
           pending: 0,
           paidOut: 0,
           monthly: [],
+          lastPayout: 0,
+          lastPayoutDate: null,
         },
       };
     }
@@ -106,30 +108,74 @@ export const earningsApi = {
   },
 
   /**
-   * Request payout for available earnings
-   * Note: Your TransferToAccount component suggests implementing this functionality
-   * but I don't see a direct endpoint for it in your backend. This is a suggested implementation.
+   * Mark a booking as completed (for pay-at-property bookings)
+   * This updates the associated earning to available status
    */
-  requestPayout: async (
+  markBookingCompleted: async (bookingId: string) => {
+    try {
+      const response = await fetchWithAuth(
+        `/api/earnings/complete-booking/${bookingId}`,
+        {
+          method: 'PATCH',
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Error marking booking as completed:', error);
+      return {
+        success: false,
+        message: 'Network error while marking booking as completed',
+      };
+    }
+  },
+
+  /**
+   * Process withdrawal request
+   */
+  processWithdrawal: async (
     amount: number,
-    paymentMethod: string,
-    accountNumber: string
+    method: 'card' | 'gcash' | 'maya',
+    accountDetails: any
   ) => {
     try {
-      const response = await fetchWithAuth('/api/earnings/request-payout', {
+      const response = await fetchWithAuth('/api/earnings/withdraw', {
         method: 'POST',
         body: JSON.stringify({
           amount,
-          paymentMethod,
-          accountNumber,
+          method,
+          accountDetails,
         }),
       });
       return await response.json();
     } catch (error) {
-      console.error('Error requesting payout:', error);
+      console.error('Error processing withdrawal:', error);
       return {
         success: false,
-        message: 'Network error while requesting payout',
+        message: 'Network error while processing withdrawal',
+      };
+    }
+  },
+
+  /**
+   * Get withdrawal history
+   */
+  getWithdrawalHistory: async (page = 1, limit = 10) => {
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      const response = await fetchWithAuth(
+        `/api/earnings/withdrawals?${queryParams.toString()}`
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching withdrawal history:', error);
+      return {
+        success: false,
+        message: 'Network error while fetching withdrawal history',
+        data: [],
       };
     }
   },

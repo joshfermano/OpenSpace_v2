@@ -10,6 +10,7 @@ interface BookingsListProps {
   onConfirmBooking: (id: string) => void;
   onRejectBooking: (id: string) => void;
   onCompleteBooking: (id: string) => void;
+  onMarkPaymentReceived: (id: string) => void; // Added this prop
   onViewReceipt: (booking: Booking) => void;
 }
 
@@ -19,6 +20,7 @@ const BookingsList = ({
   onConfirmBooking,
   onRejectBooking,
   onCompleteBooking,
+  onMarkPaymentReceived, // Added this prop
   onViewReceipt,
 }: BookingsListProps) => {
   return (
@@ -31,6 +33,7 @@ const BookingsList = ({
           onConfirmBooking={onConfirmBooking}
           onRejectBooking={onRejectBooking}
           onCompleteBooking={onCompleteBooking}
+          onMarkPaymentReceived={onMarkPaymentReceived} // Pass it down
           onViewReceipt={onViewReceipt}
         />
       ))}

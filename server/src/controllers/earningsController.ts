@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Earning from '../models/Earnings';
 import User from '../models/User';
 import Booking from '../models/Booking';
+import { v4 as uuidv4 } from 'uuid';
 
 // Get host earnings
 export const getHostEarnings = async (
@@ -37,7 +38,7 @@ export const getHostEarnings = async (
     const earnings = await Earning.find(filter)
       .populate({
         path: 'booking',
-        select: 'checkIn checkOut totalPrice bookingStatus',
+        select: 'checkIn checkOut totalPrice bookingStatus paymentMethod',
         populate: {
           path: 'room',
           select: 'title images',
@@ -122,6 +123,15 @@ export const getEarningsSummary = async (
       { $group: { _id: null, total: { $sum: '$hostPayout' } } },
     ]);
 
+    // Get latest payout information
+    const latestPayout = await Earning.findOne({
+      host: userId,
+      status: 'paid_out',
+      paidOutAt: { $exists: true },
+    })
+      .sort({ paidOutAt: -1 })
+      .limit(1);
+
     // Get earnings by month (for chart data)
     const monthlyEarnings = await Earning.aggregate([
       { $match: { host: new mongoose.Types.ObjectId(userId) } },
@@ -153,6 +163,8 @@ export const getEarningsSummary = async (
           availableEarnings.length > 0 ? availableEarnings[0].total : 0,
         pending: pendingEarnings.length > 0 ? pendingEarnings[0].total : 0,
         paidOut: paidOutEarnings.length > 0 ? paidOutEarnings[0].total : 0,
+        lastPayout: latestPayout ? latestPayout.hostPayout : 0,
+        lastPayoutDate: latestPayout ? latestPayout.paidOutAt : null,
         monthly: formattedMonthlyEarnings,
       },
     });
@@ -160,6 +172,446 @@ export const getEarningsSummary = async (
     res.status(500).json({
       success: false,
       message: 'Error fetching earnings summary',
+      error: error.message,
+    });
+  }
+};
+
+// Mark booking as completed and convert pending earnings to available
+export const markBookingCompleted = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user.id;
+    const { bookingId } = req.params;
+
+    // Check if user is a host
+    const user = await User.findById(userId);
+    if (!user || user.role !== 'host') {
+      res.status(403).json({
+        success: false,
+        message: 'Only hosts can mark bookings as completed',
+      });
+      return;
+    }
+
+    // Find the booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Verify ownership
+    if (booking.host.toString() !== userId) {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to manage this booking',
+      });
+      return;
+    }
+
+    // Check if booking is in confirmed status
+    if (booking.bookingStatus !== 'confirmed') {
+      res.status(400).json({
+        success: false,
+        message: `Cannot mark a booking with status '${booking.bookingStatus}' as completed`,
+      });
+      return;
+    }
+
+    // Update booking status
+    booking.bookingStatus = 'completed';
+    await booking.save();
+
+    // Find related earnings record
+    const earnings = await Earning.findOne({
+      booking: bookingId,
+      host: userId,
+    });
+
+    if (earnings) {
+      if (booking.paymentMethod === 'property') {
+        // For 'pay at property', make the earnings available now
+        earnings.status = 'available';
+        earnings.availableDate = new Date();
+        await earnings.save();
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Booking marked as completed successfully',
+        data: {
+          booking,
+          earnings,
+        },
+      });
+    } else {
+      // If no earning record exists (unusual), create one
+      const hostEarningPercentage = 0.8;
+      const platformFeePercentage = 0.2;
+      const amount = booking.totalPrice;
+      const platformFee = amount * platformFeePercentage;
+      const hostPayout = amount * hostEarningPercentage;
+
+      const newEarnings = await Earning.create({
+        host: booking.host,
+        booking: booking._id,
+        amount,
+        platformFee,
+        hostPayout,
+        status: 'available',
+        paymentMethod: booking.paymentMethod,
+        availableDate: new Date(),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Booking marked as completed and earnings created',
+        data: {
+          booking,
+          earnings: newEarnings,
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('Error marking booking as completed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error marking booking as completed',
+      error: error.message,
+    });
+  }
+};
+
+// Process withdrawal request
+export const processWithdrawal = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user.id;
+    const { amount, method, accountDetails } = req.body;
+
+    // Check if user is a host
+    const user = await User.findById(userId);
+    if (!user || user.role !== 'host') {
+      res.status(403).json({
+        success: false,
+        message: 'Only hosts can withdraw earnings',
+      });
+      return;
+    }
+
+    // Validate request data
+    if (!amount || amount <= 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Valid withdrawal amount is required',
+      });
+      return;
+    }
+
+    if (!method || !['card', 'gcash', 'maya'].includes(method)) {
+      res.status(400).json({
+        success: false,
+        message: 'Valid withdrawal method is required (card, gcash, maya)',
+      });
+      return;
+    }
+
+    if (!accountDetails) {
+      res.status(400).json({
+        success: false,
+        message: 'Account details are required for withdrawal',
+      });
+      return;
+    }
+
+    // Validate method-specific details
+    if (method === 'card') {
+      const { cardNumber, expiryDate, cvv, cardholderName } = accountDetails;
+
+      if (!cardNumber || !expiryDate || !cvv || !cardholderName) {
+        res.status(400).json({
+          success: false,
+          message: 'All card details are required',
+        });
+        return;
+      }
+
+      // Validate card number (simple 16-digit check)
+      const cleanedCardNumber = cardNumber.replace(/\s|-/g, '');
+      if (!/^\d{16}$/.test(cleanedCardNumber)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid card number format',
+        });
+        return;
+      }
+
+      // Validate expiry date (MM/YY format)
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiryDate)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid expiry date format (MM/YY required)',
+        });
+        return;
+      }
+
+      // Validate CVV (3-4 digits)
+      if (!/^\d{3,4}$/.test(cvv)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid CVV format',
+        });
+        return;
+      }
+    } else if (['gcash', 'maya'].includes(method)) {
+      const { mobileNumber } = accountDetails;
+
+      if (!mobileNumber) {
+        res.status(400).json({
+          success: false,
+          message: 'Mobile number is required',
+        });
+        return;
+      }
+
+      // Validate Philippine mobile number format (09XXXXXXXXX)
+      if (!/^09\d{9}$/.test(mobileNumber)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid mobile number format. Must be 09XXXXXXXXX',
+        });
+        return;
+      }
+    }
+
+    // Check if user has enough available balance
+    const availableEarnings = await Earning.aggregate([
+      {
+        $match: {
+          host: new mongoose.Types.ObjectId(userId),
+          status: 'available',
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$hostPayout' } } },
+    ]);
+
+    const availableBalance =
+      availableEarnings.length > 0 ? availableEarnings[0].total : 0;
+
+    if (amount > availableBalance) {
+      res.status(400).json({
+        success: false,
+        message: `Insufficient funds. Available balance: ₱${availableBalance.toFixed(
+          2
+        )}`,
+      });
+      return;
+    }
+
+    // Process the withdrawal
+    // Find earnings to process, starting from the oldest
+    const earningsToProcess = await Earning.find({
+      host: userId,
+      status: 'available',
+    }).sort({ availableDate: 1 });
+
+    let remainingAmount = amount;
+    const processedEarningIds = [];
+    let partialEarningId = null;
+    let partialAmount = 0;
+
+    // Process full earnings
+    for (const earning of earningsToProcess) {
+      if (remainingAmount <= 0) break;
+
+      if (earning.hostPayout <= remainingAmount) {
+        // This earning can be fully processed
+        processedEarningIds.push(earning._id);
+        remainingAmount -= earning.hostPayout;
+      } else {
+        // Need to partially process this earning
+        partialEarningId = earning._id;
+        partialAmount = remainingAmount;
+        remainingAmount = 0;
+        break;
+      }
+    }
+
+    // Generate withdrawal ID
+    const withdrawalId = `W-${uuidv4().substring(0, 8).toUpperCase()}`;
+    const now = new Date();
+
+    if (processedEarningIds.length > 0) {
+      await Earning.updateMany(
+        { _id: { $in: processedEarningIds } },
+        {
+          status: 'paid_out',
+          paidOutAt: now,
+          payoutId: withdrawalId,
+        }
+      );
+    }
+
+    if (partialEarningId && partialAmount > 0) {
+      const originalEarning = await Earning.findById(partialEarningId);
+
+      if (originalEarning) {
+        // Calculate proportions
+        const proportion = partialAmount / originalEarning.hostPayout;
+        const partialTotalAmount = originalEarning.amount * proportion;
+        const partialPlatformFee = originalEarning.platformFee * proportion;
+
+        await Earning.create({
+          host: originalEarning.host,
+          booking: originalEarning.booking,
+          amount: partialTotalAmount,
+          platformFee: partialPlatformFee,
+          hostPayout: partialAmount,
+          status: 'paid_out',
+          paymentMethod: originalEarning.paymentMethod,
+          availableDate: originalEarning.availableDate,
+          paidOutAt: now,
+          payoutId: withdrawalId,
+        });
+
+        // Reduce the amount in the original earning
+        originalEarning.amount -= partialTotalAmount;
+        originalEarning.platformFee -= partialPlatformFee;
+        originalEarning.hostPayout -= partialAmount;
+        await originalEarning.save();
+      }
+    }
+
+    let paymentDetails;
+
+    if (method === 'card') {
+      paymentDetails = {
+        method: 'card',
+        cardholderName: accountDetails.cardholderName,
+        cardLastFour: accountDetails.cardNumber.slice(-4),
+      };
+    } else {
+      paymentDetails = {
+        method,
+        mobileNumber: accountDetails.mobileNumber,
+      };
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully processed withdrawal of ₱${amount.toFixed(2)}`,
+      data: {
+        withdrawalId,
+        amount,
+        date: now,
+        paymentDetails,
+        remainingBalance: availableBalance - amount,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error processing withdrawal:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing withdrawal',
+      error: error.message,
+    });
+  }
+};
+
+// Get withdrawal history
+export const getWithdrawalHistory = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user.id;
+
+    // Check if user is a host
+    const user = await User.findById(userId);
+    if (!user || user.role !== 'host') {
+      res.status(403).json({
+        success: false,
+        message: 'Only hosts can access withdrawal history',
+      });
+      return;
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get all withdrawals (paid_out earnings grouped by payoutId)
+    const withdrawals = await Earning.aggregate([
+      {
+        $match: {
+          host: new mongoose.Types.ObjectId(userId),
+          status: 'paid_out',
+          payoutId: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $sort: { paidOutAt: -1 },
+      },
+      {
+        $group: {
+          _id: '$payoutId',
+          amount: { $sum: '$hostPayout' },
+          date: { $first: '$paidOutAt' },
+          paymentMethod: { $first: '$paymentMethod' },
+          count: { $sum: 1 },
+        },
+      },
+      { $skip: skip },
+      { $limit: limit },
+    ]);
+
+    // Get total count
+    const totalCount = await Earning.aggregate([
+      {
+        $match: {
+          host: new mongoose.Types.ObjectId(userId),
+          status: 'paid_out',
+          payoutId: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$payoutId',
+        },
+      },
+      {
+        $count: 'total',
+      },
+    ]);
+
+    const total = totalCount.length > 0 ? totalCount[0].total : 0;
+
+    res.status(200).json({
+      success: true,
+      count: withdrawals.length,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      data: withdrawals.map((w) => ({
+        id: w._id,
+        amount: w.amount,
+        date: w.date,
+        paymentMethod: w.paymentMethod,
+        earningsCount: w.count,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching withdrawal history',
       error: error.message,
     });
   }

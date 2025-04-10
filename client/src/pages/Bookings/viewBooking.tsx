@@ -27,6 +27,18 @@ import { bookingApi } from '../../services/bookingApi';
 import logo_black from '../../assets/logo_black.jpg';
 import CancelBookingModal from '../../components/Bookings/CancelBookingModal';
 
+// Convert time from 24-hour format to 12-hour format
+const convertTo12Hour = (time24: string) => {
+  if (!time24) return '';
+
+  const [hours, minutes] = time24.split(':');
+  let hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12; // Convert 0 to 12
+  return `${hour}:${minutes} ${ampm}`;
+};
+
 const ViewBooking = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
@@ -290,7 +302,6 @@ const ViewBooking = () => {
     }
   }
 
-  // Prepare receipt data
   const receiptData = {
     referenceNumber: booking._id?.toString().slice(-8).toUpperCase() || 'N/A',
     bookingDetails: {
@@ -300,8 +311,20 @@ const ViewBooking = () => {
         : 'N/A',
       checkInDate: formatDate(booking.checkIn),
       checkOutDate: formatDate(booking.checkOut),
-      checkInTime: booking.checkInTime || '2:00 PM',
-      checkOutTime: booking.checkOutTime || '12:00 PM',
+      checkInTime: booking.checkInTime
+        ? convertTo12Hour(booking.checkInTime)
+        : room.type === 'stay'
+        ? '2:00 PM'
+        : room.type === 'conference'
+        ? '8:00 AM'
+        : '10:00 AM',
+      checkOutTime: booking.checkOutTime
+        ? convertTo12Hour(booking.checkOutTime)
+        : room.type === 'stay'
+        ? '12:00 PM'
+        : room.type === 'conference'
+        ? '5:00 PM'
+        : '10:00 PM',
       numberOfDays: calculateDuration(booking.checkIn, booking.checkOut),
       subtotal: basePrice,
       serviceFee,
@@ -400,7 +423,13 @@ const ViewBooking = () => {
                       {formatDate(booking.checkIn)}
                     </p>
                     <p className="text-gray-700 dark:text-gray-300 font-medium mt-1">
-                      {booking.checkInTime || '2:00 PM'}
+                      {booking.checkInTime
+                        ? convertTo12Hour(booking.checkInTime)
+                        : room.type === 'stay'
+                        ? '2:00 PM'
+                        : room.type === 'conference'
+                        ? '8:00 AM'
+                        : '10:00 AM'}
                     </p>
                   </div>
 
@@ -415,7 +444,13 @@ const ViewBooking = () => {
                       {formatDate(booking.checkOut)}
                     </p>
                     <p className="text-gray-700 dark:text-gray-300 font-medium mt-1">
-                      {booking.checkOutTime || '12:00 PM'}
+                      {booking.checkOutTime
+                        ? convertTo12Hour(booking.checkOutTime)
+                        : room.type === 'stay'
+                        ? '12:00 PM'
+                        : room.type === 'conference'
+                        ? '5:00 PM'
+                        : '10:00 PM'}
                     </p>
                   </div>
                 </div>
