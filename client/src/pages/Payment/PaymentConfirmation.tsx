@@ -55,21 +55,9 @@ const PaymentConfirmation = () => {
     try {
       const email = showEmailInput && emailAddress ? emailAddress : undefined;
 
-      // Send receipt via API
       const response = await bookingApi.sendReceiptEmail(
         confirmation.bookingId,
-        email,
-        {
-          referenceNumber: confirmation.referenceNumber,
-          bookingDetails: confirmation.bookingDetails,
-          paymentMethod: confirmation.paymentMethod,
-          paymentStatus:
-            confirmation.paymentMethod === 'property'
-              ? 'pending host approval'
-              : 'confirmed',
-          date: confirmation.date,
-          time: confirmation.time,
-        }
+        email
       );
 
       if (response.success) {
