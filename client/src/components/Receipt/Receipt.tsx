@@ -25,6 +25,7 @@ interface ReceiptProps {
     total: number;
   };
   paymentMethod: string;
+  paymentStatus: string; // Required prop for handling payment status
   date: string;
   time: string;
   companyLogo?: string;
@@ -34,6 +35,7 @@ const Receipt: React.FC<ReceiptProps> = ({
   referenceNumber,
   bookingDetails,
   paymentMethod,
+  paymentStatus,
   date,
   time,
   companyLogo,
@@ -90,9 +92,10 @@ const Receipt: React.FC<ReceiptProps> = ({
     }
   };
 
-  const sendByEmail = () => {
-    // In a real app, this would call an API endpoint to send the receipt by email
-    alert('Receipt would be sent by email in a production environment.');
+  // Determine status text to display
+  const getStatusText = () => {
+    if (paymentStatus) return paymentStatus; // Use provided status
+    return paymentMethod === 'property' ? 'To be paid at property' : 'Paid';
   };
 
   return (
@@ -183,9 +186,7 @@ const Receipt: React.FC<ReceiptProps> = ({
                       Status:
                     </span>
                     <span className="ml-2 font-medium text-green-600 dark:text-green-400">
-                      {paymentMethod === 'property'
-                        ? 'To be paid at property'
-                        : 'Paid'}
+                      {getStatusText()}
                     </span>
                   </div>
                   <div>
@@ -241,13 +242,13 @@ const Receipt: React.FC<ReceiptProps> = ({
       <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
         <button
           onClick={downloadPDF}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-darkBlue text-white dark:bg-blue-600 rounded-lg hover:opacity-90 transition-colors">
+          className="download-receipt-btn flex items-center justify-center gap-2 px-6 py-2.5 bg-darkBlue text-white dark:bg-blue-600 rounded-lg hover:opacity-90 transition-colors">
           <FiDownload />
           Download Receipt (PDF)
         </button>
         <button
-          onClick={sendByEmail}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+          onClick={() => alert('Email functionality would be implemented here')}
+          className="flex items-center justify-center gap-2 px-6 py-2.5 border border-gray-300 dark:border-gray-600 dark:text-light rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
           <FiMail />
           Email Receipt
         </button>

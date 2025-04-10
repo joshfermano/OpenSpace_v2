@@ -47,7 +47,7 @@ interface ExtendedUser {
   hostInfo?: HostInfo;
   bookings?: Booking[];
   favorites?: string[];
-  createdAt?: string; // Added for dateJoined fallback
+  createdAt?: string;
 }
 
 const UserDashboard = () => {
@@ -69,7 +69,6 @@ const UserDashboard = () => {
           return;
         }
 
-        // Fetch user dashboard data
         const dashboardResponse = await userApi.getUserDashboard();
 
         if (dashboardResponse.success && dashboardResponse.data) {

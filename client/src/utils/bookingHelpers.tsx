@@ -2,7 +2,6 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiAlertCircle,
-  FiRefreshCw,
   FiCreditCard,
 } from 'react-icons/fi';
 import { Booking } from '../types/booking';
@@ -24,7 +23,7 @@ export const calculateDuration = (booking: Booking) => {
   const checkOut = new Date(booking.checkOut);
   const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
 
-  if (booking.room.type === 'Conference Room') {
+  if (booking.room.type === 'conference') {
     const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
     return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'}`;
   } else {
@@ -33,85 +32,88 @@ export const calculateDuration = (booking: Booking) => {
   }
 };
 
-// Get status display with appropriate styles
+// Get status display with appropriate icon and color
 export const getStatusDisplay = (status: string) => {
   switch (status) {
     case 'confirmed':
       return {
-        icon: <FiCheckCircle className="mr-2" />,
+        icon: <FiCheckCircle className="mr-1" />,
         text: 'Confirmed',
         bgColor: 'bg-green-100 dark:bg-green-900/30',
-        textColor: 'text-green-800 dark:text-green-400',
+        textColor: 'text-green-700 dark:text-green-400',
       };
     case 'pending':
       return {
-        icon: <FiAlertCircle className="mr-2" />,
+        icon: <FiAlertCircle className="mr-1" />,
         text: 'Pending',
         bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
-        textColor: 'text-yellow-800 dark:text-yellow-400',
+        textColor: 'text-yellow-700 dark:text-yellow-400',
       };
     case 'cancelled':
       return {
-        icon: <FiXCircle className="mr-2" />,
+        icon: <FiXCircle className="mr-1" />,
         text: 'Cancelled',
         bgColor: 'bg-red-100 dark:bg-red-900/30',
-        textColor: 'text-red-800 dark:text-red-400',
+        textColor: 'text-red-700 dark:text-red-400',
       };
     case 'rejected':
       return {
-        icon: <FiXCircle className="mr-2" />,
+        icon: <FiXCircle className="mr-1" />,
         text: 'Rejected',
         bgColor: 'bg-red-100 dark:bg-red-900/30',
-        textColor: 'text-red-800 dark:text-red-400',
+        textColor: 'text-red-700 dark:text-red-400',
       };
     case 'completed':
       return {
-        icon: <FiCheckCircle className="mr-2" />,
+        icon: <FiCheckCircle className="mr-1" />,
         text: 'Completed',
         bgColor: 'bg-blue-100 dark:bg-blue-900/30',
-        textColor: 'text-blue-800 dark:text-blue-400',
+        textColor: 'text-blue-700 dark:text-blue-400',
       };
     default:
       return {
-        icon: <FiAlertCircle className="mr-2" />,
+        icon: <FiAlertCircle className="mr-1" />,
         text: status,
-        bgColor: 'bg-gray-100 dark:bg-gray-700',
-        textColor: 'text-gray-800 dark:text-gray-400',
+        bgColor: 'bg-gray-100 dark:bg-gray-800',
+        textColor: 'text-gray-600 dark:text-gray-400',
       };
   }
 };
 
 // Get payment status display
-export const getPaymentStatusDisplay = (status: string, method: string) => {
-  switch (status) {
-    case 'paid':
-      return {
-        text: 'Paid',
-        icon: <FiCheckCircle className="mr-1" />,
-        color: 'text-green-600 dark:text-green-400',
-      };
-    case 'pending':
-      return {
-        text: method === 'property' ? 'Pay at Property' : 'Payment Pending',
-        icon:
-          method === 'property' ? (
-            <FiCreditCard className="mr-1" />
-          ) : (
-            <FiAlertCircle className="mr-1" />
-          ),
-        color: 'text-yellow-600 dark:text-yellow-400',
-      };
-    case 'refunded':
-      return {
-        text: 'Refunded',
-        icon: <FiRefreshCw className="mr-1" />,
-        color: 'text-blue-600 dark:text-blue-400',
-      };
-    default:
-      return {
-        text: status,
-        icon: <FiAlertCircle className="mr-1" />,
-        color: 'text-gray-600 dark:text-gray-400',
-      };
+export const getPaymentStatusDisplay = (
+  paymentStatus: string,
+  paymentMethod: string
+) => {
+  if (paymentStatus === 'paid') {
+    return {
+      icon: <FiCheckCircle className="mr-1" />,
+      text: 'Paid',
+      color: 'text-green-600 dark:text-green-400',
+    };
+  } else if (paymentStatus === 'refunded') {
+    return {
+      icon: <FiCreditCard className="mr-1" />,
+      text: 'Refunded',
+      color: 'text-blue-600 dark:text-blue-400',
+    };
+  } else if (paymentStatus === 'cancelled') {
+    return {
+      icon: <FiXCircle className="mr-1" />,
+      text: 'Cancelled',
+      color: 'text-red-600 dark:text-red-400',
+    };
+  } else if (paymentStatus === 'pending' && paymentMethod === 'property') {
+    return {
+      icon: <FiAlertCircle className="mr-1" />,
+      text: 'Pay at Property',
+      color: 'text-amber-600 dark:text-amber-400',
+    };
+  } else {
+    return {
+      icon: <FiAlertCircle className="mr-1" />,
+      text: 'Pending',
+      color: 'text-gray-600 dark:text-gray-400',
+    };
   }
 };

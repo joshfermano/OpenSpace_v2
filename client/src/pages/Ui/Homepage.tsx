@@ -5,6 +5,20 @@ import { MdOutlineFilterListOff } from 'react-icons/md';
 import RoomCards from '../../components/Room/RoomCards';
 import { roomApi } from '../../services/roomApi';
 
+// Define proper type mapping for room categories
+const categoryToType: Record<string, string> = {
+  'Room Stay': 'stay',
+  'Conference Room': 'conference',
+  'Events Place': 'event',
+};
+
+// Reverse mapping for displaying
+const typeToCategory: Record<string, string> = {
+  stay: 'Room Stay',
+  conference: 'Conference Room',
+  event: 'Events Place',
+};
+
 const Homepage = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<boolean>(false);
@@ -63,7 +77,11 @@ const Homepage = () => {
           room.title?.toLowerCase().includes(searchLower) ||
           room.location?.city?.toLowerCase().includes(searchLower) ||
           room.location?.country?.toLowerCase().includes(searchLower) ||
-          room.description?.toLowerCase().includes(searchLower)
+          room.description?.toLowerCase().includes(searchLower) ||
+          // Add search through amenities
+          room.amenities?.some((amenity: string) =>
+            amenity.toLowerCase().includes(searchLower)
+          )
       );
     }
 
@@ -71,9 +89,14 @@ const Homepage = () => {
     const activeFilters = Object.entries(categoryFilters).filter(
       ([_, isActive]) => isActive
     );
+
     if (activeFilters.length > 0) {
       result = result.filter((room) =>
-        activeFilters.some(([category]) => room.type === category)
+        activeFilters.some(([category]) => {
+          // Map frontend category name to backend type
+          const backendType = categoryToType[category];
+          return room.type === backendType;
+        })
       );
     }
 
@@ -90,7 +113,7 @@ const Homepage = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full border border-darkBlue p-2 pl-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 dark:bg-gray-800 dark:border-gray-700 placeholder:text-gray-400 dark:placeholder:text-gray-400"
-              placeholder="Search for places, events, or conferences..."
+              placeholder="Search for places, events, conferences, or amenities..."
             />
             <CiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-xl" />
           </div>

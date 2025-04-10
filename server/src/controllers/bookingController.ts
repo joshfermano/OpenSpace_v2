@@ -107,7 +107,6 @@ export const updateBookingStatus = async (
   }
 };
 
-// Delete booking (admin only)
 export const deleteBooking = async (
   req: Request,
   res: Response
@@ -150,7 +149,6 @@ export const deleteBooking = async (
   }
 };
 
-// Create a new booking
 export const createBooking = async (
   req: Request,
   res: Response
@@ -165,20 +163,22 @@ export const createBooking = async (
       totalPrice,
       priceBreakdown,
       paymentMethod,
-      paymentDetails,
       specialRequests,
     } = req.body;
+
+    console.log('Creating booking with data:', req.body);
 
     // Validate required fields
     if (!roomId || !checkIn || !checkOut || !guests || !totalPrice) {
       res.status(400).json({
         success: false,
         message: 'Missing required booking information',
+        details: { roomId, checkIn, checkOut, guests, totalPrice },
       });
       return;
     }
 
-    // Check if room exists and is available
+    // Find the room
     const room = await Room.findById(roomId);
     if (!room) {
       res.status(404).json({
@@ -188,105 +188,26 @@ export const createBooking = async (
       return;
     }
 
-    // Check if room is published and approved
-    if (!room.isPublished || room.status !== 'approved') {
-      res.status(400).json({
-        success: false,
-        message: 'Room is not available for booking',
-      });
-      return;
-    }
-
     // Convert dates to Date objects
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
 
-    // Check if dates are valid
-    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid date format',
-      });
-      return;
-    }
-
-    // Check if dates are within room's availability
-    if (
-      checkInDate < room.availability.startDate ||
-      checkOutDate > room.availability.endDate
-    ) {
-      res.status(400).json({
-        success: false,
-        message: 'Selected dates are outside of room availability',
-      });
-      return;
-    }
-
-    // Check if there are any unavailable dates in the selected range
-    const unavailableDatesInRange = room.availability.unavailableDates.filter(
-      (date) => date >= checkInDate && date <= checkOutDate
-    );
-
-    if (unavailableDatesInRange.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Selected dates include unavailable dates',
-        unavailableDates: unavailableDatesInRange,
-      });
-      return;
-    }
-
-    // Check if there are any existing bookings for the dates
-    const existingBookings = await Booking.find({
-      room: roomId,
-      bookingStatus: { $in: ['pending', 'confirmed'] },
-      $or: [
-        {
-          // Check if booking overlaps with requested dates
-          $and: [
-            { checkIn: { $lte: checkOutDate } },
-            { checkOut: { $gte: checkInDate } },
-          ],
-        },
-      ],
-    });
-
-    if (existingBookings.length > 0) {
-      res.status(400).json({
-        success: false,
-        message: 'Room is already booked for the selected dates',
-        conflictingBookings: existingBookings.map((booking) => ({
-          checkIn: booking.checkIn,
-          checkOut: booking.checkOut,
-        })),
-      });
-      return;
-    }
-
-    // Check if user is trying to book their own room
-    if (room.host.toString() === userId) {
-      res.status(400).json({
-        success: false,
-        message: 'You cannot book your own room',
-      });
-      return;
-    }
-
-    // Create booking
+    // Create the booking
     const booking = await Booking.create({
       room: roomId,
       user: userId,
       host: room.host,
       checkIn: checkInDate,
       checkOut: checkOutDate,
-      guests,
+      guests: {
+        adults: Number(guests),
+      },
       totalPrice,
       priceBreakdown: priceBreakdown || {
         basePrice: totalPrice,
       },
       paymentStatus: 'pending',
       paymentMethod: paymentMethod || 'property',
-      paymentDetails,
       bookingStatus: 'pending',
       specialRequests,
     });
@@ -297,6 +218,7 @@ export const createBooking = async (
       data: booking,
     });
   } catch (error: any) {
+    console.error('Error creating booking:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating booking',
@@ -305,13 +227,15 @@ export const createBooking = async (
   }
 };
 
-// Process card payment
-export const processCardPayment = async (
+export const processPayment = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { bookingId, cardDetails } = req.body;
+    console.log('Payment request received:', req.body);
+    const { bookingId, paymentMethod, cardDetails, mobilePaymentDetails } =
+      req.body;
+
     const userId = req.user.id;
 
     // Validate booking ID
@@ -319,6 +243,15 @@ export const processCardPayment = async (
       res.status(400).json({
         success: false,
         message: 'Booking ID is required',
+      });
+      return;
+    }
+
+    // Check if payment method is provided
+    if (!paymentMethod) {
+      res.status(400).json({
+        success: false,
+        message: 'Payment method is required',
       });
       return;
     }
@@ -351,61 +284,134 @@ export const processCardPayment = async (
       return;
     }
 
-    // Check if cardDetails are provided
-    if (!cardDetails) {
-      res.status(400).json({
-        success: false,
-        message: 'Card details are required',
-      });
-      return;
-    }
-
-    // Validate card details
-    const { cardNumber, expiryDate, cvv, cardholderName } = cardDetails;
-    if (!cardNumber || !expiryDate || !cvv || !cardholderName) {
-      res.status(400).json({
-        success: false,
-        message: 'All card details are required',
-      });
-      return;
-    }
-
-    // Simple card validation (for testing)
-    const isValidCard = simpleCardValidation(cardNumber);
-
-    if (!isValidCard) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid card details',
-      });
-      return;
-    }
-
-    // Update booking with payment details
-    booking.paymentStatus = 'paid';
-    booking.paymentMethod = 'creditCard';
-    booking.bookingStatus = 'confirmed';
-    booking.paymentDetails = {
+    // Payment details object to store in the database
+    const paymentDetails: any = {
       paymentDate: new Date(),
       amount: booking.totalPrice,
     };
 
-    // Save booking
+    switch (paymentMethod) {
+      case 'card':
+        if (!cardDetails) {
+          res.status(400).json({
+            success: false,
+            message: 'Card details are required for card payment',
+          });
+          return;
+        }
+
+        const { cardNumber, expiryDate, cvv, cardholderName } = cardDetails;
+
+        // Validate card details
+        if (!cardNumber || !expiryDate || !cvv || !cardholderName) {
+          res.status(400).json({
+            success: false,
+            message: 'All card details are required',
+          });
+          return;
+        }
+
+        // Validate card number
+        const isValidCard = simpleCardValidation(cardNumber);
+        if (!isValidCard) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid card number',
+          });
+          return;
+        }
+
+        // Validate expiry date
+        const [month, year] = expiryDate.split('/');
+        const currentYear = new Date().getFullYear() % 100;
+        const currentMonth = new Date().getMonth() + 1;
+
+        if (
+          !/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiryDate) ||
+          parseInt(year) < currentYear ||
+          (parseInt(year) === currentYear && parseInt(month) < currentMonth)
+        ) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid or expired card',
+          });
+          return;
+        }
+
+        // Validate CVV
+        if (!/^\d{3,4}$/.test(cvv)) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid CVV',
+          });
+          return;
+        }
+
+        paymentDetails.cardLast4 = cardNumber.slice(-4);
+        paymentDetails.cardholderName = cardholderName;
+        break;
+
+      case 'gcash':
+      case 'maya':
+        if (!mobilePaymentDetails || !mobilePaymentDetails.mobileNumber) {
+          res.status(400).json({
+            success: false,
+            message: 'Mobile number is required for mobile payment methods',
+          });
+          return;
+        }
+
+        // Validate mobile number for Philippine mobile services
+        const mobileNumberPattern = /^09\d{9}$/;
+        if (!mobileNumberPattern.test(mobilePaymentDetails.mobileNumber)) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid mobile number format. Must be 09XXXXXXXXX',
+          });
+          return;
+        }
+
+        paymentDetails.phoneNumber = mobilePaymentDetails.mobileNumber;
+        paymentDetails.provider = paymentMethod;
+        break;
+
+      case 'property':
+        paymentDetails.paymentLocation = 'property';
+        break;
+
+      default:
+        res.status(400).json({
+          success: false,
+          message: 'Unsupported payment method',
+        });
+        return;
+    }
+
+    // Update booking
+    booking.paymentMethod = paymentMethod;
+    booking.paymentStatus = paymentMethod === 'property' ? 'pending' : 'paid';
+    booking.bookingStatus =
+      paymentMethod === 'property' ? 'pending' : 'confirmed';
+    booking.paymentDetails = paymentDetails;
+
     await booking.save();
 
-    // Create earning record for the host
-    await createEarningRecord(booking);
+    if (booking.paymentStatus === 'paid') {
+      await createEarningRecord(booking);
+    }
 
     res.status(200).json({
       success: true,
       message: 'Payment processed successfully',
       data: {
         bookingId: booking._id,
+        paymentMethod: booking.paymentMethod,
         paymentStatus: booking.paymentStatus,
         bookingStatus: booking.bookingStatus,
       },
     });
   } catch (error: any) {
+    console.error('Payment processing error:', error);
     res.status(500).json({
       success: false,
       message: 'Error processing payment',
@@ -414,168 +420,65 @@ export const processCardPayment = async (
   }
 };
 
-// Simple card validation function (for testing purposes)
+// Simple card validation helper function
 const simpleCardValidation = (cardNumber: string): boolean => {
   // Remove spaces and dashes
-  const cleanedNumber = cardNumber.replace(/[\\s-]/g, '');
+  const cleanedNumber = cardNumber.replace(/[\s-]/g, '');
 
   // Check if it's numeric and 16 digits
-  if (!/^\\d{16}$/.test(cleanedNumber)) {
+  if (!/^\d{16}$/.test(cleanedNumber)) {
     return false;
   }
 
-  // Simple validation: Accept cards starting with 4 (Visa) or 5 (MasterCard)
-  return cleanedNumber.startsWith('4') || cleanedNumber.startsWith('5');
-};
+  // Luhn algorithm (mod 10)
+  let sum = 0;
+  let isEven = false;
 
-// Create earning record
-const createEarningRecord = async (booking: any): Promise<void> => {
-  // Calculate platform fee (e.g., 10% of total)
-  const platformFeePercentage = 0.1;
-  const platformFee = booking.totalPrice * platformFeePercentage;
-  const hostPayout = booking.totalPrice - platformFee;
+  // Loop through values starting from the rightmost one
+  for (let i = cleanedNumber.length - 1; i >= 0; i--) {
+    let digit = parseInt(cleanedNumber.charAt(i));
 
-  // Set availability date (e.g., after checkout + 1 day for potential disputes)
-  const availableDate = new Date(booking.checkOut);
-  availableDate.setDate(availableDate.getDate() + 1);
-
-  // Create earning record
-  await Earning.create({
-    host: booking.host,
-    booking: booking._id,
-    amount: booking.totalPrice,
-    platformFee,
-    hostPayout,
-    status: 'pending',
-    paymentMethod: booking.paymentMethod,
-    availableDate,
-  });
-};
-
-// Confirm booking (for pay at property)
-export const confirmBooking = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { bookingId } = req.params;
-    const userId = req.user.id;
-
-    // Check if booking exists
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      res.status(404).json({
-        success: false,
-        message: 'Booking not found',
-      });
-      return;
+    if (isEven) {
+      digit *= 2;
+      if (digit > 9) {
+        digit -= 9;
+      }
     }
 
-    // Check if user is authorized (host of the room)
-    const room = await Room.findById(booking.room);
-    if (!room) {
-      res.status(404).json({
-        success: false,
-        message: 'Room not found',
-      });
-      return;
-    }
-
-    if (room.host.toString() !== userId && req.user.role !== 'admin') {
-      res.status(403).json({
-        success: false,
-        message: 'Not authorized to confirm this booking',
-      });
-      return;
-    }
-
-    // Update booking status
-    booking.bookingStatus = 'confirmed';
-    await booking.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Booking confirmed successfully',
-      data: booking,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error confirming booking',
-      error: error.message,
-    });
+    sum += digit;
+    isEven = !isEven;
   }
+
+  return sum % 10 === 0;
 };
 
-// Mark booking as completed
-export const completeBooking = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+// Create earning record for the host when a booking is paid
+const createEarningRecord = async (booking: any): Promise<void> => {
   try {
-    const { bookingId } = req.params;
-    const userId = req.user.id;
+    const hostEarningPercentage = 0.8;
+    const platformFeePercentage = 0.2;
 
-    // Check if booking exists
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      res.status(404).json({
-        success: false,
-        message: 'Booking not found',
-      });
-      return;
-    }
+    const hostEarnings = booking.totalPrice * hostEarningPercentage;
+    const platformFee = booking.totalPrice * platformFeePercentage;
 
-    // Check if user is authorized (host of the room or admin)
-    if (booking.host.toString() !== userId && req.user.role !== 'admin') {
-      res.status(403).json({
-        success: false,
-        message: 'Not authorized to complete this booking',
-      });
-      return;
-    }
-
-    // Check if booking is in confirmed status
-    if (booking.bookingStatus !== 'confirmed') {
-      res.status(400).json({
-        success: false,
-        message: `Booking cannot be completed when it's in ${booking.bookingStatus} status`,
-      });
-      return;
-    }
-
-    // Update booking status
-    booking.bookingStatus = 'completed';
-
-    // If payment method is 'property', mark as paid when completing
-    if (
-      booking.paymentMethod === 'property' &&
-      booking.paymentStatus === 'pending'
-    ) {
-      booking.paymentStatus = 'paid';
-      booking.paymentDetails = {
-        paymentDate: new Date(),
-        amount: booking.totalPrice,
-        recordedBy: new mongoose.Types.ObjectId(userId),
-      };
-
-      // Create earning record for host
-      await createEarningRecord(booking);
-    }
-
-    await booking.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Booking completed successfully',
-      data: booking,
+    await Earning.create({
+      host: booking.host,
+      booking: booking._id,
+      room: booking.room,
+      amount: hostEarnings,
+      platformFee,
+      totalAmount: booking.totalPrice,
+      status: 'pending', // Will be paid out later
+      paymentDate: booking.paymentDetails?.paymentDate,
+      description: `Earnings from booking #${booking._id}`,
     });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error completing booking',
-      error: error.message,
-    });
+
+    console.log(
+      `Earnings record created for host ${booking.host} - Amount: ${hostEarnings}`
+    );
+  } catch (error) {
+    console.error('Error creating earnings record:', error);
+    // Don't throw here - just log the error as this shouldn't block the booking process
   }
 };
 
@@ -892,6 +795,469 @@ export const canReviewRoom = async (
     res.status(500).json({
       success: false,
       message: 'Error checking review eligibility',
+      error: error.message,
+    });
+  }
+};
+
+export const confirmBooking = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.id;
+
+    // Find the booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Check if user is the host of this booking
+    if (booking.host.toString() !== userId && req.user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to confirm this booking',
+      });
+      return;
+    }
+
+    // Check if booking can be confirmed
+    if (booking.bookingStatus !== 'pending') {
+      res.status(400).json({
+        success: false,
+        message: `Cannot confirm a booking with status: ${booking.bookingStatus}`,
+      });
+      return;
+    }
+
+    // Update booking status
+    booking.bookingStatus = 'confirmed';
+    await booking.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking confirmed successfully',
+      data: booking,
+    });
+  } catch (error: any) {
+    console.error('Error confirming booking:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error confirming booking',
+      error: error.message,
+    });
+  }
+};
+
+export const completeBooking = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.id;
+
+    // Find the booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Check if user is the host of this booking
+    if (booking.host.toString() !== userId && req.user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to complete this booking',
+      });
+      return;
+    }
+
+    // Check if booking can be completed
+    if (booking.bookingStatus !== 'confirmed') {
+      res.status(400).json({
+        success: false,
+        message: `Cannot complete a booking with status: ${booking.bookingStatus}`,
+      });
+      return;
+    }
+
+    // Check if checkout date has passed
+    const checkOutDate = new Date(booking.checkOut);
+    const currentDate = new Date();
+
+    // Allow completion on checkout day or after
+    if (currentDate < checkOutDate) {
+      // If we're not on checkout day yet, don't allow completion unless admin
+      if (req.user.role !== 'admin') {
+        res.status(400).json({
+          success: false,
+          message: 'Cannot complete booking before checkout date',
+        });
+        return;
+      }
+    }
+
+    // Update booking status
+    booking.bookingStatus = 'completed';
+    await booking.save();
+
+    // Update earning record if exists
+    await Earning.updateOne({ booking: bookingId }, { status: 'ready' });
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking marked as completed',
+      data: booking,
+    });
+  } catch (error: any) {
+    console.error('Error completing booking:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error completing booking',
+      error: error.message,
+    });
+  }
+};
+
+export const rejectBooking = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.id;
+
+    // Check if booking exists
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Check if user is authorized (host or admin)
+    const isHost = booking.host.toString() === userId;
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isHost && !isAdmin) {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to reject this booking',
+      });
+      return;
+    }
+
+    // Check if booking can be rejected (must be in pending status)
+    if (booking.bookingStatus !== 'pending') {
+      res.status(400).json({
+        success: false,
+        message: `Cannot reject a booking with status: ${booking.bookingStatus}`,
+      });
+      return;
+    }
+
+    // Update booking status
+    booking.bookingStatus = 'rejected';
+    booking.cancellationDetails = {
+      cancelledAt: new Date(),
+      cancelledBy: isAdmin ? 'admin' : 'host',
+      reason: reason || 'Booking rejected by host',
+    };
+
+    await booking.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking rejected successfully',
+      data: booking,
+    });
+  } catch (error: any) {
+    console.error('Error rejecting booking:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting booking',
+      error: error.message,
+    });
+  }
+};
+
+export const markPaymentReceived = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.id;
+
+    // Find the booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Check if user is the host of this booking or an admin
+    if (booking.host.toString() !== userId && req.user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to mark payment as received for this booking',
+      });
+      return;
+    }
+
+    // Check if booking payment can be marked as received
+    if (
+      booking.paymentStatus !== 'pending' ||
+      booking.paymentMethod !== 'property'
+    ) {
+      res.status(400).json({
+        success: false,
+        message: `Cannot mark payment as received for a booking with status: ${booking.paymentStatus} and method: ${booking.paymentMethod}`,
+      });
+      return;
+    }
+
+    // Update booking payment status
+    booking.paymentStatus = 'paid';
+    booking.bookingStatus = 'confirmed';
+    booking.paymentDetails = {
+      ...booking.paymentDetails,
+      paymentDate: new Date(),
+      amount: booking.totalPrice,
+      recordedBy: new mongoose.Types.ObjectId(userId),
+    };
+
+    await booking.save();
+
+    // Create earning record for the host
+    await createEarningRecord(booking);
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment marked as received successfully',
+      data: booking,
+    });
+  } catch (error: any) {
+    console.error('Error marking payment as received:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error marking payment as received',
+      error: error.message,
+    });
+  }
+};
+
+export const canCancelBooking = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.id;
+
+    // Find the booking
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Check if user is authorized to view this booking
+    const isGuest = booking.user.toString() === userId;
+    const isHost = booking.host.toString() === userId;
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isGuest && !isHost && !isAdmin) {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this booking',
+      });
+      return;
+    }
+
+    // Check cancellation conditions
+    const canCancel =
+      // Not already cancelled or completed
+      !['cancelled', 'completed', 'rejected'].includes(booking.bookingStatus) &&
+      // Admin can always cancel
+      (isAdmin ||
+        // Host can cancel pending bookings
+        (isHost && booking.bookingStatus === 'pending') ||
+        // Guest can cancel based on booking policy
+        (isGuest && booking.isCancellable));
+
+    // Calculate potential refund amount
+    let refundAmount = 0;
+    if (booking.paymentStatus === 'paid' && canCancel) {
+      const now = new Date();
+      const checkIn = new Date(booking.checkIn);
+      const timeDifference = checkIn.getTime() - now.getTime();
+      const daysBeforeCheckIn = timeDifference / (1000 * 60 * 60 * 24);
+
+      if (isHost || isAdmin) {
+        // Full refund if cancelled by host or admin
+        refundAmount = booking.totalPrice;
+      } else if (daysBeforeCheckIn >= 7) {
+        // Full refund if cancelled 7+ days before check-in
+        refundAmount = booking.totalPrice;
+      } else if (daysBeforeCheckIn >= 3) {
+        // 50% refund if cancelled 3-7 days before check-in
+        refundAmount = booking.totalPrice * 0.5;
+      }
+      // No refund if cancelled less than 3 days before check-in
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        canCancel,
+        refundAmount,
+        refundPercentage:
+          refundAmount > 0
+            ? Math.round((refundAmount / booking.totalPrice) * 100)
+            : 0,
+        reason: !canCancel
+          ? ['cancelled', 'completed', 'rejected'].includes(
+              booking.bookingStatus
+            )
+            ? `Booking is already ${booking.bookingStatus}`
+            : 'This booking cannot be cancelled according to the cancellation policy'
+          : undefined,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error checking cancellation eligibility:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking if booking can be cancelled',
+      error: error.message,
+    });
+  }
+};
+
+export const sendReceiptEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.id;
+    const { recipientEmail, receiptDetails } = req.body;
+
+    // Check if booking exists
+    const booking = await Booking.findById(bookingId)
+      .populate('room', 'title images location')
+      .populate('user', 'firstName lastName email');
+
+    if (!booking) {
+      res.status(404).json({
+        success: false,
+        message: 'Booking not found',
+      });
+      return;
+    }
+
+    // Verify the user is authorized to access this booking
+    if (booking.user._id.toString() !== userId && req.user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Not authorized to send receipt for this booking',
+      });
+      return;
+    }
+
+    const user = booking.user as any; // Cast to any to access populated fields
+    const email = recipientEmail || user.email;
+
+    let receipt;
+    if (receiptDetails) {
+      receipt = receiptDetails;
+    } else {
+      // Format check-in and check-out dates
+      const checkInDate = new Date(booking.checkIn);
+      const checkOutDate = new Date(booking.checkOut);
+
+      // Calculate number of nights
+      const nightsCount = Math.ceil(
+        (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      const user = booking.user as any; // Cast to 'any' to access firstName and lastName
+
+      receipt = {
+        referenceNumber: booking._id.toString().slice(-8).toUpperCase(),
+        bookingDetails: {
+          bookingId: booking._id,
+          propertyName: (booking.room as any).title,
+          checkInDate: checkInDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          }),
+          checkOutDate: checkOutDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          }),
+          checkInTime: '3:00 PM', // Default time or from room.checkInTime
+          checkOutTime: '12:00 PM', // Default time or from room.checkOutTime
+          guestCount: booking.guests,
+          guestName: `${user.firstName} ${user.lastName}`,
+          totalPrice: booking.totalPrice,
+          priceBreakdown: booking.priceBreakdown,
+          nightsCount,
+          specialRequests: booking.specialRequests,
+        },
+        paymentMethod: booking.paymentMethod,
+        paymentStatus: booking.paymentStatus,
+        date: new Date().toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        time: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      };
+    }
+
+    // Import at the top of the file
+    const { sendBookingReceiptEmail } = await import(
+      '../services/emailService'
+    );
+
+    // Send the receipt email
+    await sendBookingReceiptEmail(email, receipt);
+
+    res.status(200).json({
+      success: true,
+      message: `Receipt sent to ${email} successfully`,
+    });
+  } catch (error: any) {
+    console.error('Error sending receipt email:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending receipt email',
       error: error.message,
     });
   }

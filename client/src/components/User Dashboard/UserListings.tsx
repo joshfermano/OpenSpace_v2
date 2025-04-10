@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiHome, FiMap, FiEdit2, FiChevronRight } from 'react-icons/fi';
+import { FiHome, FiMap, FiEdit2, FiChevronRight, FiPlus } from 'react-icons/fi';
 import { FaPesoSign } from 'react-icons/fa6';
 import { roomApi } from '../../services/roomApi';
 import { API_URL } from '../../services/core';
-import { getImageUrl, handleImageError } from '../../utils/imageUtils';
+import { handleImageError } from '../../utils/imageUtils';
 
 interface Room {
   _id: string;
@@ -92,36 +92,58 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
   const displayedListings = showAll ? listings : listings.slice(0, 2);
 
   if (loading) {
-    return <div className="animate-pulse">Loading your listings...</div>;
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div className="animate-pulse flex space-x-4">
+          <div className="flex-1 space-y-4 py-1">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 sm:mb-0">
           Your Listings
         </h2>
-        <div className="flex space-x-2">
-          {userData.role === 'host' && (
+
+        {userData.role === 'host' && userData.hostInfo && (
+          <div className="flex flex-wrap gap-3">
+            {!showAll && listings.length > 2 && (
+              <Link
+                to="/listings/all"
+                className="inline-flex items-center px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40 rounded-lg transition-colors text-sm font-medium">
+                View All <FiChevronRight className="ml-1" />
+              </Link>
+            )}
+
+            {!showAll && listings.length > 0 && (
+              <Link
+                to="/dashboard/earnings"
+                className="inline-flex items-center px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800/40 rounded-lg transition-colors text-sm font-medium">
+                <FaPesoSign className="mr-1.5" /> View Earnings
+              </Link>
+            )}
+
             <Link
               to="/rooms/create"
-              className="inline-flex items-center px-2 py-1 bg-darkBlue dark:bg-light hover:bg-blue-600 text-light dark:text-darkBlue dark:hover:text-light hover:scale-105 rounded-lg transition-all duration-500 text-sm">
-              <span className="text-lg mr-1">+</span> New Listing
+              className="inline-flex items-center px-3 py-2 bg-darkBlue dark:bg-light text-white dark:text-darkBlue hover:bg-blue-700 dark:hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium">
+              <FiPlus className="mr-1.5" /> New Listing
             </Link>
-          )}
-          {!showAll && userData.role === 'host' && listings.length > 2 && (
-            <Link
-              to="/listings/all"
-              className="text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center hover:underline">
-              View All <FiChevronRight className="ml-1" />
-            </Link>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {userData.role !== 'host' ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
             <FiHome
               className="text-purple-600 dark:text-purple-400"
               size={24}
@@ -135,17 +157,17 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
           </p>
           <Link
             to="/become-host"
-            className="inline-flex items-center px-4 py-2 bg-darkBlue dark:bg-light hover:bg-purple-600 text-light dark:text-darkBlue dark:hover:text-light hover:scale-105 rounded-lg transition-all duration-500">
+            className="inline-flex items-center px-4 py-2 bg-darkBlue dark:bg-light hover:bg-blue-700 text-light dark:text-darkBlue dark:hover:text-light hover:opacity-90 rounded-lg transition-all duration-300">
             Learn More
           </Link>
         </div>
       ) : userData.hostInfo ? (
         listings.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {displayedListings.map((room) => (
               <div
                 key={room._id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
                 <div className="h-48 bg-gray-200 dark:bg-gray-700 relative">
                   {room.images && room.images.length > 0 ? (
                     <img
@@ -159,10 +181,19 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
                       <FiHome className="text-gray-400" size={32} />
                     </div>
                   )}
-                  <div className="absolute top-3 left-3 bg-white dark:bg-gray-800 text-sm font-medium px-2 py-1 rounded-lg">
+                  <div
+                    className={`absolute top-3 left-3 px-2 py-1 rounded-lg text-xs font-medium
+                      ${
+                        room.isPublished && room.status === 'approved'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          : room.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                      }`}>
                     {room.isPublished && room.status === 'approved'
                       ? 'Active'
-                      : room.status}
+                      : room.status.charAt(0).toUpperCase() +
+                        room.status.slice(1)}
                   </div>
                 </div>
                 <div className="p-5">
@@ -173,23 +204,23 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
                     <FiMap className="mr-1" /> {room.location.city},{' '}
                     {room.location.country}
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <div>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      <p className="text-gray-500 dark:text-gray-400 text-xs">
                         Price
                       </p>
                       <p className="font-medium text-gray-900 dark:text-white">
                         ₱{room.price.basePrice.toLocaleString()}{' '}
-                        {room.type === 'conference' ? '/ hour' : '/ night'}
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {room.type === 'conference' ? '/ hour' : '/ night'}
+                        </span>
                       </p>
                     </div>
-                    <div className="flex space-x-2">
-                      <Link
-                        to={`/rooms/edit/${room._id}`}
-                        className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                        <FiEdit2 size={18} />
-                      </Link>
-                    </div>
+                    <Link
+                      to={`/rooms/edit/${room._id}`}
+                      className="inline-flex items-center px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-sm">
+                      <FiEdit2 size={14} className="mr-1" /> Edit
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -197,11 +228,8 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900 flex items-center justify-center">
-              <FiHome
-                className="text-purple-600 dark:text-purple-400"
-                size={24}
-              />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+              <FiHome className="text-blue-600 dark:text-blue-400" size={24} />
             </div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               No listings yet
@@ -211,14 +239,14 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
             </p>
             <Link
               to="/rooms/create"
-              className="inline-flex items-center px-4 py-2 bg-darkBlue dark:bg-light hover:bg-blue-600 text-light dark:text-darkBlue dark:hover:text-light hover:scale-105 rounded-lg transition-all duration-500">
-              Create Listing
+              className="inline-flex items-center px-4 py-2 bg-darkBlue dark:bg-light hover:bg-blue-700 text-light dark:text-darkBlue dark:hover:text-light hover:opacity-90 rounded-lg transition-all duration-300">
+              <FiPlus className="mr-1.5" /> Create Listing
             </Link>
           </div>
         )
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
             <FiHome
               className="text-purple-600 dark:text-purple-400"
               size={24}
@@ -232,24 +260,11 @@ const UserListings = ({ userData, showAll = false }: UserListingsProps) => {
           </p>
           <Link
             to="/profile/edit"
-            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+            className="inline-flex items-center px-4 py-2 bg-darkBlue dark:bg-light hover:bg-blue-700 text-light dark:text-darkBlue dark:hover:text-light hover:opacity-90 rounded-lg transition-all duration-300">
             Complete Profile
           </Link>
         </div>
       )}
-
-      {userData.role === 'host' &&
-        userData.hostInfo &&
-        !showAll &&
-        listings.length > 0 && (
-          <div className="mt-4 flex justify-center">
-            <Link
-              to="/dashboard/earnings"
-              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
-              <FaPesoSign className="mr-2" /> View Earnings
-            </Link>
-          </div>
-        )}
     </div>
   );
 };

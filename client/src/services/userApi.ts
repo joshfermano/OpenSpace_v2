@@ -57,6 +57,28 @@ export const userApi = {
     }
   },
 
+  getRoomsByHost: async (hostId: string, params = {}) => {
+    try {
+      const queryParams = new URLSearchParams(
+        params as Record<string, string>
+      ).toString();
+      const url = `/api/rooms/host/${hostId}${
+        queryParams ? `?${queryParams}` : ''
+      }`;
+
+      const response = await fetchWithAuth(url);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error fetching rooms for host ${hostId}:`, error);
+      return {
+        success: false,
+        message: 'Network error while fetching host rooms',
+        data: [],
+      };
+    }
+  },
+
   updateUserProfile: async (profileData: UpdateProfileData) => {
     try {
       const response = await fetchWithAuth('/api/users/edit-profile', {
@@ -189,9 +211,12 @@ export const userApi = {
 
   unsaveRoom: async (roomId: string) => {
     try {
-      const response = await fetchWithAuth(`/api/users/unsave-room/${roomId}`, {
-        method: 'DELETE',
-      });
+      const response = await fetchWithAuth(
+        `/api/users/unsave-rooms/${roomId}`,
+        {
+          method: 'DELETE',
+        }
+      );
       const data = await response.json();
       return data;
     } catch (error) {

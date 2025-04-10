@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   FiMapPin,
@@ -6,16 +6,14 @@ import {
   FiTag,
   FiTrash2,
   FiPlus,
-  FiAlertTriangle,
   FiInfo,
+  FiAlertTriangle,
 } from 'react-icons/fi';
-import { FaPesoSign } from 'react-icons/fa6';
 import { MdOutlineRule } from 'react-icons/md';
+import { FaPesoSign } from 'react-icons/fa6';
 import { roomApi } from '../../services/roomApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_URL } from '../../services/core';
-import placeholder from '../../assets/logo_black.jpg';
-import { getImageUrl, handleImageError } from '../../utils/imageUtils';
 
 // Common amenities options
 const AMENITIES_OPTIONS = [
@@ -104,6 +102,9 @@ const EditRoom = () => {
   const [rules, setRules] = useState<string[]>([]);
   const [newRule, setNewRule] = useState('');
 
+  // New state for custom amenity
+  const [newAmenity, setNewAmenity] = useState('');
+
   // Image files state
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
@@ -122,67 +123,63 @@ const EditRoom = () => {
     const fetchRoomData = async () => {
       if (!roomId) return;
 
-      setIsLoading(true);
       try {
-        // Fetch room details
         const response = await roomApi.getRoomById(roomId);
 
         if (response.success) {
-          const roomData = response.data;
-          setCurrentStatus(roomData.status || 'pending');
+          const room = response.data;
+          setCurrentStatus(room.status);
 
-          // Set form data from fetched room data
+          // Format room data for the form
           setFormData({
-            title: roomData.title || '',
-            description: roomData.description || '',
+            title: room.title || '',
+            description: room.description || '',
             location: {
-              address: roomData.location?.address || '',
-              city: roomData.location?.city || '',
-              state: roomData.location?.state || '',
-              country: roomData.location?.country || 'Philippines',
-              zipCode: roomData.location?.zipCode || '',
+              address: room.location?.address || '',
+              city: room.location?.city || '',
+              state: room.location?.state || '',
+              country: room.location?.country || 'Philippines',
+              zipCode: room.location?.zipCode || '',
             },
-            type: roomData.type || '',
+            type: room.type || '',
             price: {
-              basePrice: roomData.price?.basePrice?.toString() || '',
-              cleaningFee: roomData.price?.cleaningFee?.toString() || '0',
-              serviceFee: roomData.price?.serviceFee?.toString() || '0',
+              basePrice: room.price?.basePrice?.toString() || '',
+              cleaningFee: room.price?.cleaningFee?.toString() || '0',
+              serviceFee: room.price?.serviceFee?.toString() || '0',
             },
             capacity: {
-              maxGuests: roomData.capacity?.maxGuests?.toString() || '',
+              maxGuests: room.capacity?.maxGuests?.toString() || '',
             },
-            amenities: roomData.amenities || [],
+            amenities: room.amenities || [],
             houseRules: {
-              checkInTime: roomData.houseRules?.checkInTime || '14:00',
-              checkOutTime: roomData.houseRules?.checkOutTime || '12:00',
-              instantBooking: roomData.houseRules?.instantBooking || false,
+              checkInTime: room.houseRules?.checkInTime || '14:00',
+              checkOutTime: room.houseRules?.checkOutTime || '12:00',
+              instantBooking: room.houseRules?.instantBooking || false,
               cancellationPolicy:
-                roomData.houseRules?.cancellationPolicy ||
+                room.houseRules?.cancellationPolicy ||
                 'Standard 48-hour cancellation policy',
-              additionalRules: roomData.houseRules?.additionalRules || [],
+              additionalRules: room.houseRules?.additionalRules || [],
             },
-            images: roomData.images || [],
+            images: room.images || [],
           });
 
-          // Set rules state
-          setRules(roomData.houseRules?.additionalRules || []);
+          // Set rules from houseRules.additionalRules
+          if (room.houseRules?.additionalRules) {
+            setRules(room.houseRules.additionalRules);
+          }
 
-          // Create image preview URLs for existing images
-          if (roomData.images && roomData.images.length > 0) {
-            setImagePreviewUrls(
-              roomData.images.map((img: string) => getImageUrl(img))
+          // Set image preview URLs
+          if (room.images && room.images.length > 0) {
+            const previewUrls = room.images.map((image: string) =>
+              getImageUrl(image)
             );
+            setImagePreviewUrls(previewUrls);
           }
         } else {
-          setErrors({
-            form: 'Failed to load room data: ' + response.message,
-          });
+          console.error('Error fetching room:', response.message);
         }
-      } catch (error: any) {
-        console.error('Error fetching room data:', error);
-        setErrors({
-          form: 'Failed to load room data. Please try again later.',
-        });
+      } catch (error) {
+        console.error('Error:', error);
       } finally {
         setIsLoading(false);
       }
@@ -204,7 +201,7 @@ const EditRoom = () => {
 
   // Helper function to get the full image URL
   const getImageUrl = (imagePath: string) => {
-    if (!imagePath) return placeholder;
+    if (!imagePath) return '';
     if (imagePath.startsWith('http')) return imagePath;
     return `${API_URL}${imagePath}`;
   };
@@ -261,10 +258,25 @@ const EditRoom = () => {
     const category = e.target.value;
     const type = categoryToType[category] || '';
 
-    setFormData({
-      ...formData,
-      type: type,
-    });
+    // Set default check-in/check-out times based on room type
+    if (type === 'stay') {
+      // For Room Stay, set fixed check-in/check-out times
+      setFormData((prevData) => ({
+        ...prevData,
+        type: type,
+        houseRules: {
+          ...prevData.houseRules,
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
+        },
+      }));
+    } else {
+      // For Conference Room or Events Place, keep existing times
+      setFormData({
+        ...formData,
+        type: type,
+      });
+    }
 
     if (errors.type) {
       setErrors({
@@ -295,6 +307,36 @@ const EditRoom = () => {
         amenities: '',
       });
     }
+  };
+
+  // Handle adding a custom amenity
+  const handleAddAmenity = () => {
+    if (newAmenity.trim()) {
+      // Check if amenity already exists
+      if (!formData.amenities.includes(newAmenity.trim())) {
+        setFormData({
+          ...formData,
+          amenities: [...formData.amenities, newAmenity.trim()],
+        });
+      }
+      setNewAmenity('');
+
+      // Clear amenities error if it exists
+      if (errors.amenities) {
+        setErrors({
+          ...errors,
+          amenities: '',
+        });
+      }
+    }
+  };
+
+  // Handle removing a custom amenity
+  const handleRemoveAmenity = (amenity: string) => {
+    setFormData({
+      ...formData,
+      amenities: formData.amenities.filter((a) => a !== amenity),
+    });
   };
 
   // Handle adding a new rule
@@ -383,7 +425,7 @@ const EditRoom = () => {
     const updatedImages = [...formData.images];
     updatedImages.splice(index, 1);
 
-    // Remove from preview URLs as well
+    // Update preview URLs as well
     const updatedPreviewUrls = [...imagePreviewUrls];
     updatedPreviewUrls.splice(index, 1);
 
@@ -628,18 +670,10 @@ const EditRoom = () => {
     setDeleteLoading(true);
     try {
       // Use API helper function instead of raw fetch
-      const response = await fetch(`${API_URL}/api/rooms/${roomId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
+      const response = await roomApi.deleteRoom(roomId);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to delete room');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to delete room');
       }
 
       setSubmitSuccess(true);
@@ -662,6 +696,9 @@ const EditRoom = () => {
       setDeleteLoading(false);
     }
   };
+
+  // Check if check-in/check-out times should be editable
+  const isRoomStay = formData.type === 'stay';
 
   if (isLoading) {
     return (
@@ -709,10 +746,8 @@ const EditRoom = () => {
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
               Edit Space
             </h1>
-            <div className="flex items-center mt-1">
-              <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">
-                Status:
-              </span>
+            <div className="flex items-center mt-2">
+              <p className="text-gray-600 dark:text-gray-400 mr-2">Status:</p>
               {getStatusBadge()}
             </div>
           </div>
@@ -722,19 +757,11 @@ const EditRoom = () => {
         {(currentStatus === 'pending' || currentStatus === 'rejected') && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 p-4 rounded-lg mb-6 flex items-start">
             <FiInfo className="mr-3 mt-0.5 flex-shrink-0" size={20} />
-            <div>
-              {currentStatus === 'pending' ? (
-                <p>
-                  This space is pending approval and is not visible to guests
-                  yet. You can still make changes.
-                </p>
-              ) : (
-                <p>
-                  This space was rejected and needs revisions before it can be
-                  approved.
-                </p>
-              )}
-            </div>
+            <p>
+              {currentStatus === 'pending'
+                ? 'Your space is awaiting approval. You can edit your listing, but any changes to critical fields will require re-approval.'
+                : 'Your space has been rejected. Please review and update the details, then it will be submitted for re-approval.'}
+            </p>
           </div>
         )}
 
@@ -812,7 +839,7 @@ const EditRoom = () => {
                   <select
                     id="category"
                     name="category"
-                    value={typeToCategory[formData.type] || ''}
+                    value={formData.type ? typeToCategory[formData.type] : ''}
                     onChange={handleTypeChange}
                     className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
                       errors.type
@@ -1065,21 +1092,85 @@ const EditRoom = () => {
               </p>
             )}
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {AMENITIES_OPTIONS.map((amenity) => (
+            {/* Standard amenities section */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Standard Amenities
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {AMENITIES_OPTIONS.map((amenity) => (
+                  <button
+                    key={amenity}
+                    type="button"
+                    onClick={() => handleAmenityToggle(amenity)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                    ${
+                      formData.amenities.includes(amenity)
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-2 border-blue-500'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}>
+                    {amenity}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom amenities section */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Custom Amenities
+              </h3>
+
+              {/* Add custom amenity input */}
+              <div className="flex space-x-2 mb-4">
+                <input
+                  type="text"
+                  value={newAmenity}
+                  onChange={(e) => setNewAmenity(e.target.value)}
+                  placeholder="Add a custom amenity..."
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                />
                 <button
-                  key={amenity}
                   type="button"
-                  onClick={() => handleAmenityToggle(amenity)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                  ${
-                    formData.amenities.includes(amenity)
-                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-2 border-blue-500'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600'
-                  }`}>
-                  {amenity}
+                  onClick={handleAddAmenity}
+                  disabled={!newAmenity.trim()}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors">
+                  Add
                 </button>
-              ))}
+              </div>
+
+              {/* Custom amenities list */}
+              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                {formData.amenities.filter(
+                  (amenity) => !AMENITIES_OPTIONS.includes(amenity)
+                ).length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {formData.amenities
+                      .filter((amenity) => !AMENITIES_OPTIONS.includes(amenity))
+                      .map((amenity, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-md">
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {amenity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAmenity(amenity)}
+                            className="text-red-500 hover:text-red-700 dark:hover:text-red-300"
+                            aria-label="Remove amenity">
+                            <FiTrash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-2">
+                    No custom amenities added yet.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1159,6 +1250,18 @@ const EditRoom = () => {
               Booking Details
             </h2>
 
+            {isRoomStay && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mb-4 text-yellow-800 dark:text-yellow-300">
+                <div className="flex items-start">
+                  <FiInfo className="mt-1 mr-2 flex-shrink-0" />
+                  <p className="text-sm">
+                    For Room Stay listings, check-in and check-out times are
+                    fixed to provide guests with a consistent experience.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Check-in Time */}
               <div>
@@ -1173,9 +1276,16 @@ const EditRoom = () => {
                   name="houseRules.checkInTime"
                   value={formData.houseRules.checkInTime}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                  disabled={isRoomStay}
+                  className={`w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors
+                  ${isRoomStay ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
+                {isRoomStay && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Fixed at 2:00 PM for Room Stay listings
+                  </p>
+                )}
               </div>
 
               {/* Check-out Time */}
@@ -1191,9 +1301,16 @@ const EditRoom = () => {
                   name="houseRules.checkOutTime"
                   value={formData.houseRules.checkOutTime}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                  disabled={isRoomStay}
+                  className={`w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-light dark:bg-gray-900 text-gray-900 dark:text-light focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors
+                  ${isRoomStay ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
+                {isRoomStay && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Fixed at 12:00 PM for Room Stay listings
+                  </p>
+                )}
               </div>
 
               {/* Cancellation Policy */}

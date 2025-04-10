@@ -716,3 +716,152 @@ export const sendHostPayoutNotificationEmail = async (
     console.error('Error sending host payout notification email:', error);
   }
 };
+
+export const sendBookingReceiptEmail = async (
+  to: string,
+  receiptDetails: {
+    referenceNumber: string;
+    bookingDetails: any;
+    paymentMethod: string;
+    paymentStatus: string;
+    date: string;
+    time: string;
+  }
+): Promise<void> => {
+  const {
+    referenceNumber,
+    bookingDetails,
+    paymentMethod,
+    paymentStatus,
+    date,
+    time,
+  } = receiptDetails;
+
+  const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const bookingUrl = bookingDetails.bookingId
+    ? `${baseUrl}/bookings/${bookingDetails.bookingId}`
+    : `${baseUrl}/dashboard/bookings`;
+
+  // Format currency
+  const formatPrice = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  // Create HTML table for price breakdown
+  let priceBreakdownHtml = '';
+  if (bookingDetails.priceBreakdown) {
+    const { basePrice, cleaningFee, serviceFee } =
+      bookingDetails.priceBreakdown;
+    priceBreakdownHtml = `
+      <tr>
+        <td style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Base Price (${
+          bookingDetails.nightsCount || 1
+        } night${bookingDetails.nightsCount > 1 ? 's' : ''})</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">${formatPrice(
+          basePrice || 0
+        )}</td>
+      </tr>
+      ${
+        cleaningFee
+          ? `
+      <tr>
+        <td style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Cleaning Fee</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">${formatPrice(
+          cleaningFee
+        )}</td>
+      </tr>`
+          : ''
+      }
+      ${
+        serviceFee
+          ? `
+      <tr>
+        <td style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Service Fee</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">${formatPrice(
+          serviceFee
+        )}</td>
+      </tr>`
+          : ''
+      }
+    `;
+  }
+
+  const mailOptions = {
+    from: `"OpenSpace" <${VERIFIED_SENDER}>`,
+    to,
+    subject: 'Your OpenSpace Booking Receipt',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #333;">OpenSpace Booking Receipt</h2>
+        </div>
+        
+        <div style="background-color: ${
+          paymentMethod === 'property' ? '#fff8e1' : '#f0f8ff'
+        }; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">${
+            paymentMethod === 'property'
+              ? 'Pending Host Approval'
+              : 'Payment Confirmed'
+          }</h3>
+          <p><strong>Reference Number:</strong> ${referenceNumber}</p>
+          <p><strong>Date:</strong> ${date} at ${time}</p>
+          <p><strong>Payment Method:</strong> ${
+            paymentMethod === 'property'
+              ? 'Pay at Property'
+              : paymentMethod === 'card'
+              ? 'Credit Card'
+              : paymentMethod
+          }</p>
+          <p><strong>Status:</strong> ${paymentStatus}</p>
+        </div>
+        
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px;">Booking Details</h3>
+        <div style="margin-bottom: 20px;">
+          <p><strong>Property:</strong> ${
+            bookingDetails.propertyName || 'Space'
+          }</p>
+          <p><strong>Check-in:</strong> ${bookingDetails.checkInDate} at ${
+      bookingDetails.checkInTime
+    }</p>
+          <p><strong>Check-out:</strong> ${bookingDetails.checkOutDate} at ${
+      bookingDetails.checkOutTime
+    }</p>
+          <p><strong>Guests:</strong> ${bookingDetails.guestCount || 1}</p>
+        </div>
+        
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px;">Price Details</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tbody>
+            ${priceBreakdownHtml}
+            <tr style="font-weight: bold;">
+              <td style="padding: 8px; text-align: left;">Total</td>
+              <td style="padding: 8px; text-align: right;">${formatPrice(
+                bookingDetails.totalPrice || 0
+              )}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${bookingUrl}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">View Booking</a>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #777; text-align: center;">
+          <p>This is an automated receipt. Please do not reply to this email.</p>
+          <p>© ${new Date().getFullYear()} OpenSpace. All rights reserved.</p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Booking receipt email sent to ${to}`);
+  } catch (error) {
+    console.error('Error sending booking receipt email:', error);
+  }
+};

@@ -14,6 +14,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ViewBooking from './pages/Bookings/viewBooking';
 import ViewAllBookings from './pages/Bookings/ViewAllBookings';
 
+// Password Reset
+import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
+import ForgotPasswordSent from './pages/Auth/ForgotPasswordSent';
+
 // Rooms
 import ViewAllListings from './pages/Room/ViewAllListings';
 import ViewAllFavorites from './pages/Room/ViewAllFavorites';
@@ -136,7 +140,7 @@ const router = createBrowserRouter(
           path="/host/bookings"
           element={
             <ProtectedRoute requiredRole="host">
-              <HostBookings statusFilter="all" />
+              <HostBookings />
             </ProtectedRoute>
           }
         />
@@ -228,7 +232,10 @@ const router = createBrowserRouter(
         <Route path="register" element={<Register />} />
         <Route path="admin-login" element={<AdminLogin />} />
         <Route path="admin-register" element={<AdminRegister />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
       </Route>
+
+      <Route path="/reset-password/:token" element={<ForgotPasswordSent />} />
     </>
   )
 );

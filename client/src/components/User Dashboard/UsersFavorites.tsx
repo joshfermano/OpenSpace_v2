@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FiHeart, FiMap, FiChevronRight } from 'react-icons/fi';
-import { userApi } from '../../services/userApi';
+import { roomApi } from '../../services/roomApi'; // Added roomApi import
 
 interface Room {
   _id: string;
@@ -25,23 +25,43 @@ interface UserFavoritesProps {
 const UserFavorites = ({ showAll = false }: UserFavoritesProps) => {
   const [favoriteRooms, setFavoriteRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
+  const [removingIds, setRemovingIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchFavorites = async () => {
-      try {
-        const response = await userApi.getSavedRooms();
-        if (response.success) {
-          setFavoriteRooms(response.data || []);
-        }
-      } catch (error) {
-        console.error('Error fetching favorites:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchFavorites();
   }, []);
+
+  const fetchFavorites = async () => {
+    setLoading(true);
+    try {
+      const response = await roomApi.getFavoriteRooms();
+      if (response.success) {
+        setFavoriteRooms(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle removing a room from favorites
+  const handleRemoveFavorite = async (roomId: string) => {
+    setRemovingIds((prev) => [...prev, roomId]);
+
+    try {
+      const response = await roomApi.unfavoriteRoom(roomId);
+      if (response.success) {
+        setFavoriteRooms((prev) => prev.filter((room) => room._id !== roomId));
+      } else {
+        console.error('Failed to remove favorite:', response.message);
+      }
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+    } finally {
+      setRemovingIds((prev) => prev.filter((id) => id !== roomId));
+    }
+  };
 
   // Only show two favorites on the dashboard, show all on dedicated page
   const displayedFavorites = showAll
@@ -49,7 +69,19 @@ const UserFavorites = ({ showAll = false }: UserFavoritesProps) => {
     : favoriteRooms.slice(0, 2);
 
   if (loading) {
-    return <div className="animate-pulse">Loading your favorites...</div>;
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div className="animate-pulse flex space-x-4">
+          <div className="flex-1 space-y-4 py-1">
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -89,14 +121,13 @@ const UserFavorites = ({ showAll = false }: UserFavoritesProps) => {
                 </div>
                 <button
                   className="absolute top-3 right-3 p-2 bg-white/80 dark:bg-gray-800/80 rounded-full text-red-500 hover:bg-white dark:hover:bg-gray-800"
-                  onClick={() => {
-                    userApi.unsaveRoom(room._id).then(() => {
-                      setFavoriteRooms(
-                        favoriteRooms.filter((r) => r._id !== room._id)
-                      );
-                    });
-                  }}>
-                  <FiHeart className="fill-current" size={18} />
+                  onClick={() => handleRemoveFavorite(room._id)}
+                  disabled={removingIds.includes(room._id)}>
+                  {removingIds.includes(room._id) ? (
+                    <span className="block w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <FiHeart className="fill-current" size={18} />
+                  )}
                 </button>
               </div>
 
@@ -115,7 +146,7 @@ const UserFavorites = ({ showAll = false }: UserFavoritesProps) => {
                     </p>
                     <p className="font-medium text-gray-900 dark:text-white">
                       ₱{room.price.basePrice.toLocaleString()}
-                      {room.category === 'Room Stay' ? ' / night' : ' / hour'}
+                      {room.type === 'stay' ? ' / night' : ' / hour'}
                     </p>
                   </div>
                   <Link

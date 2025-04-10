@@ -80,6 +80,11 @@ export const getUserById = async (
         profileImage: user.profileImage,
         role: user.role,
         hostInfo: user.hostInfo,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+        identificationDocument: user.identificationDocument,
+        verificationLevel: user.verificationLevel,
+        createdAt: user.createdAt,
       };
 
       res.status(200).json({

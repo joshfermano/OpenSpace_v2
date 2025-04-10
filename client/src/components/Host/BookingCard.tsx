@@ -5,6 +5,7 @@ import {
   FiXCircle,
   FiRefreshCw,
   FiCreditCard,
+  FiUser,
 } from 'react-icons/fi';
 import { FaPesoSign, FaReceipt } from 'react-icons/fa6';
 import { Booking } from '../../types/booking';
@@ -36,7 +37,7 @@ const BookingCard = ({
   onViewReceipt,
 }: BookingCardProps) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
       <div className="p-6">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
           <div className="flex-1">
@@ -53,13 +54,13 @@ const BookingCard = ({
               </div>
             </div>
 
-            <div className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-              <span className="inline-block mr-4">
-                <strong>Guest:</strong> {booking.user.firstName}{' '}
-                {booking.user.lastName}
+            <div className="text-sm text-gray-700 dark:text-gray-300 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="inline-flex items-center">
+                <FiUser className="mr-1.5 text-gray-500" />
+                {booking.user.firstName} {booking.user.lastName}
               </span>
-              <span className="inline-block">
-                <strong>Booking ID:</strong> {booking._id.substring(0, 8)}...
+              <span className="inline-flex items-center text-xs text-gray-500 dark:text-gray-400">
+                Booking ID: {booking._id.substring(0, 8)}...
               </span>
             </div>
 
@@ -188,7 +189,7 @@ const BookingActions = ({
     <div className="flex flex-wrap justify-end gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
       <button
         onClick={onViewReceipt}
-        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center">
+        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center transition-colors">
         <FaReceipt className="mr-2" /> View Receipt
       </button>
 
@@ -197,7 +198,7 @@ const BookingActions = ({
           <button
             onClick={() => onConfirmBooking(booking._id)}
             disabled={processingAction?.id === booking._id}
-            className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center
+            className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center transition-colors
               ${
                 processingAction?.id === booking._id &&
                 processingAction?.action === 'confirm'
@@ -219,7 +220,7 @@ const BookingActions = ({
           <button
             onClick={() => onRejectBooking(booking._id)}
             disabled={processingAction?.id === booking._id}
-            className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center
+            className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center transition-colors
               ${
                 processingAction?.id === booking._id &&
                 processingAction?.action === 'reject'
@@ -244,7 +245,7 @@ const BookingActions = ({
         <button
           onClick={() => onCompleteBooking(booking._id)}
           disabled={processingAction?.id === booking._id}
-          className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center
+          className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors
             ${processingAction?.id === booking._id ? 'opacity-75' : ''}`}>
           {processingAction?.id === booking._id &&
           processingAction?.action === 'complete' ? (
@@ -265,7 +266,7 @@ const BookingActions = ({
           <button
             onClick={() => onCompleteBooking(booking._id)}
             disabled={processingAction?.id === booking._id}
-            className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center
+            className={`px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center transition-colors
             ${processingAction?.id === booking._id ? 'opacity-75' : ''}`}>
             {processingAction?.id === booking._id ? (
               <>

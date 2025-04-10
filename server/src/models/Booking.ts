@@ -20,7 +20,7 @@ export interface IBooking extends Document {
     discount?: number;
   };
   paymentStatus: 'pending' | 'paid' | 'refunded' | 'cancelled';
-  paymentMethod?: 'property' | 'creditCard';
+  paymentMethod: 'property' | 'card' | 'gcash' | 'maya';
   paymentId?: string;
   paymentDetails?: {
     paymentDate: Date;
@@ -128,7 +128,7 @@ const bookingSchema = new Schema<IBooking>(
     },
     paymentMethod: {
       type: String,
-      enum: ['property', 'creditCard'],
+      enum: ['property', 'card', 'gcash', 'maya'],
       default: 'property',
     },
     paymentId: {

@@ -67,7 +67,7 @@ router.put('/notifications/:id/read', userController.markNotificationAsRead);
 // Favorites/wishlist management
 router.get('/saved-rooms', userController.getSavedRooms);
 router.post('/save-room', userController.saveRoom);
-router.delete('/saved-rooms/:roomId', userController.unsaveRoom);
+router.delete('/unsave-rooms/:roomId', userController.unsaveRoom);
 
 // Get user (for viewing other users' profiles)
 router.get('/:userId', userController.getUserById);

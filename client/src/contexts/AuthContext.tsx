@@ -25,6 +25,7 @@ interface AuthContextType {
   register: (formData: FormData) => Promise<User | null>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
+  isVerified: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +38,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null);
 
   const clearError = () => setError(null);
+
+  // Function to check if the user is verified
+  const isVerified = () => {
+    if (!user) return false;
+    return (
+      user.verificationLevel === 'verified' ||
+      user.verificationLevel === 'basic'
+    );
+  };
 
   // Enhanced checkAuth function
   const checkAuth = async () => {
@@ -67,7 +77,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const handleAuthExpired = () => {
       setUser(null);
-      // Optionally show a message to the user
       setError('Your session has expired. Please log in again.');
     };
 
@@ -172,6 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     register,
     refreshUser,
     clearError,
+    isVerified, // Added to the context value
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

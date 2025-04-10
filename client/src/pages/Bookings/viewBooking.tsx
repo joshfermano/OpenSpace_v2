@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
   FiChevronLeft,
   FiCalendar,
@@ -14,90 +15,82 @@ import {
   FiWifi,
   FiMonitor,
   FiCoffee,
+  FiCheck,
   FiSlack,
+  FiLoader,
+  FiClock,
 } from 'react-icons/fi';
 import { GiSnowflake1, GiRoundTable } from 'react-icons/gi';
 import { MdOutlineMeetingRoom, MdOutlineChair } from 'react-icons/md';
 import { FaCar, FaRestroom, FaAccessibleIcon } from 'react-icons/fa';
-import { useAuth } from '../../contexts/AuthContext';
-import Receipt from '../../components/Receipt/Receipt';
+import { bookingApi } from '../../services/bookingApi';
 import logo_black from '../../assets/logo_black.jpg';
+import CancelBookingModal from '../../components/Bookings/CancelBookingModal';
 
 const ViewBooking = () => {
   const { bookingId } = useParams();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [booking, setBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [cancelDetails, setCancelDetails] = useState<any>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   useEffect(() => {
-    const fetchBooking = async () => {
-      try {
-        // Mock data for demonstration
-        if (user && user.bookings) {
-          const foundBooking = user.bookings.find(
-            (b: any) => b.id === bookingId
-          );
+    fetchBookingData();
+  }, [bookingId]);
 
-          if (foundBooking) {
-            // Get room details
-            const mockRoom = {
-              id: foundBooking.roomId,
-              name: 'Executive Conference Room',
-              description:
-                'A spacious, modern conference room equipped with the latest technology for productive meetings.',
-              location: 'BGC, Taguig City',
-              images: [
-                'https://images.unsplash.com/photo-1497366811353-6870744d04b2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
-                'https://images.unsplash.com/photo-1497366754035-f200968a6e72?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
-                'https://images.unsplash.com/photo-1497215842964-222b430dc094?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
-              ],
-              amenities: [
-                'High-speed WiFi',
-                'Projector and screen',
-                'Whiteboard',
-                'Air conditioning',
-                'Coffee and tea service',
-                'Restrooms',
-                'Parking',
-                'Wheelchair accessible',
-                'Conference phone',
-                'Tables and chairs for 12',
-              ],
-              hostName: 'Maria Santos',
-              hostContact: '+63 919 123 4567',
-              hostEmail: 'maria@example.com',
-              cancellationPolicy:
-                'Free cancellation up to 24 hours before check-in. After that, a 50% refund is available up to 12 hours before check-in.',
-            };
-
-            // Merge booking and room data
-            setBooking({
-              ...foundBooking,
-              room: mockRoom,
-              referenceNumber: `OS-${Math.floor(
-                100000 + Math.random() * 900000
-              )}`,
-            });
-          } else {
-            navigate('/dashboard');
-          }
-        } else {
-          navigate('/auth/login');
-        }
-      } catch (error) {
-        console.error('Error fetching booking data:', error);
-      } finally {
-        setLoading(false);
+  const fetchBookingData = async () => {
+    try {
+      setLoading(true);
+      if (!bookingId) {
+        toast.error('Booking ID is missing');
+        navigate('/dashboard');
+        return;
       }
-    };
 
-    fetchBooking();
-  }, [bookingId, user, navigate]);
+      const response = await bookingApi.getBookingById(bookingId);
+      if (response.success && response.data) {
+        setBooking(response.data);
+
+        // Check cancellation eligibility
+        const cancelResponse = await bookingApi.canCancelBooking(bookingId);
+        if (cancelResponse.success) {
+          setCancelDetails(cancelResponse.data);
+        }
+      } else {
+        toast.error('Failed to fetch booking details');
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      console.error('Error fetching booking data:', error);
+      toast.error('Something went wrong loading your booking');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendReceiptEmail = async () => {
+    try {
+      toast.info('Sending receipt to your email...');
+
+      const response = await bookingApi.sendReceiptEmail(bookingId as string);
+
+      if (response.success) {
+        toast.success('Receipt has been sent to your email');
+      } else {
+        toast.error(response.message || 'Failed to send receipt');
+      }
+    } catch (error) {
+      console.error('Error sending receipt email:', error);
+      toast.error('An error occurred while sending the receipt');
+    }
+  };
 
   // Format date to readable format
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
@@ -105,6 +98,18 @@ const ViewBooking = () => {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  // Calculate duration between two dates
+  const calculateDuration = (startDate: string, endDate: string) => {
+    if (!startDate || !endDate) return '';
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays === 1 ? '1 day' : `${diffDays} days`;
   };
 
   // Get status display with appropriate icon and color
@@ -137,10 +142,16 @@ const ViewBooking = () => {
           color:
             'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
         };
+      case 'rejected':
+        return {
+          icon: <FiXCircle className="mr-2" size={20} />,
+          text: 'Rejected',
+          color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+        };
       default:
         return {
           icon: <FiInfo className="mr-2" size={20} />,
-          text: status,
+          text: status || 'Unknown',
           color:
             'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
         };
@@ -149,39 +160,67 @@ const ViewBooking = () => {
 
   // Function to get the appropriate icon for an amenity
   const getAmenityIcon = (amenity: string) => {
-    amenity = amenity.toLowerCase();
+    if (!amenity) return <FiCheckCircle />;
 
-    if (amenity.includes('wifi')) return <FiWifi />;
+    const lowercaseAmenity = amenity.toLowerCase();
+
+    if (lowercaseAmenity.includes('wifi')) return <FiWifi />;
     if (
-      amenity.includes('projector') ||
-      amenity.includes('screen') ||
-      amenity.includes('tv')
+      lowercaseAmenity.includes('projector') ||
+      lowercaseAmenity.includes('screen') ||
+      lowercaseAmenity.includes('tv')
     )
       return <FiMonitor />;
-    if (amenity.includes('coffee') || amenity.includes('tea'))
+    if (lowercaseAmenity.includes('coffee') || lowercaseAmenity.includes('tea'))
       return <FiCoffee />;
-    if (amenity.includes('whiteboard')) return <FiSlack />;
-    if (amenity.includes('air') || amenity.includes('ac'))
+    if (lowercaseAmenity.includes('whiteboard')) return <FiSlack />;
+    if (lowercaseAmenity.includes('air') || lowercaseAmenity.includes('ac'))
       return <GiSnowflake1 />;
-    if (amenity.includes('restroom')) return <FaRestroom />;
-    if (amenity.includes('parking')) return <FaCar />;
-    if (amenity.includes('wheelchair') || amenity.includes('accessible'))
+    if (lowercaseAmenity.includes('restroom')) return <FaRestroom />;
+    if (lowercaseAmenity.includes('parking')) return <FaCar />;
+    if (
+      lowercaseAmenity.includes('wheelchair') ||
+      lowercaseAmenity.includes('accessible')
+    )
       return <FaAccessibleIcon />;
-    if (amenity.includes('phone') || amenity.includes('conference'))
+    if (
+      lowercaseAmenity.includes('phone') ||
+      lowercaseAmenity.includes('conference')
+    )
       return <FiPhone />;
-    if (amenity.includes('table')) return <GiRoundTable />;
-    if (amenity.includes('chair')) return <MdOutlineChair />;
-    if (amenity.includes('room')) return <MdOutlineMeetingRoom />;
+    if (lowercaseAmenity.includes('table')) return <GiRoundTable />;
+    if (lowercaseAmenity.includes('chair')) return <MdOutlineChair />;
+    if (lowercaseAmenity.includes('room')) return <MdOutlineMeetingRoom />;
 
     return <FiCheckCircle />;
   };
 
-  // Handle cancellation
-  const handleCancelBooking = () => {
-    // In a real app, you would send a cancellation request to your API
-    if (window.confirm('Are you sure you want to cancel this booking?')) {
-      alert('Booking cancelled successfully');
-      navigate('/dashboard');
+  const handleCancelBooking = async () => {
+    if (!cancelDetails?.canCancel) {
+      toast.error(cancelDetails?.reason || 'This booking cannot be cancelled');
+      return;
+    }
+
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancellation = async (reason: string) => {
+    try {
+      const response = await bookingApi.cancelBooking(
+        bookingId as string,
+        reason
+      );
+
+      if (response.success) {
+        toast.success('Booking cancelled successfully');
+        setShowCancelModal(false);
+        fetchBookingData(); // Refresh booking data
+      } else {
+        toast.error(response.message || 'Failed to cancel booking');
+      }
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toast.error('An error occurred while cancelling your booking');
     }
   };
 
@@ -189,14 +228,20 @@ const ViewBooking = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-darkBlue flex items-center justify-center">
-        <div className="animate-pulse text-blue-600 dark:text-blue-400">
-          Loading...
+        <div className="flex flex-col items-center">
+          <FiLoader
+            size={40}
+            className="text-darkBlue dark:text-light animate-spin mb-4"
+          />
+          <p className="text-gray-600 dark:text-gray-300">
+            Loading booking details...
+          </p>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Error state - booking not found
   if (!booking) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-darkBlue p-6">
@@ -218,29 +263,55 @@ const ViewBooking = () => {
     );
   }
 
-  const status = getStatusDisplay(booking.status);
+  const room = booking.room || {};
+  const host = booking.host || {};
+  const status = getStatusDisplay(booking.bookingStatus);
+
+  // Extract price breakdown from booking
+  const priceBreakdown = booking.priceBreakdown || {};
+  const basePrice = priceBreakdown.basePrice || 0;
+  const serviceFee = priceBreakdown.serviceFee || booking.totalPrice * 0.1; // Fallback to 10% if not specified
+  const cleaningFee = priceBreakdown.cleaningFee || 0;
+  const tax = priceBreakdown.tax || 0;
+
+  // Handle missing values and build amenities list
+  const amenities = [];
+
+  if (room.amenities && Array.isArray(room.amenities)) {
+    amenities.push(...room.amenities);
+  } else if (room.facilities && Array.isArray(room.facilities)) {
+    amenities.push(...room.facilities);
+  } else {
+    // Default amenities if none available
+    if (room.type === 'conference') {
+      amenities.push('WiFi', 'Projector', 'Tables and Chairs');
+    } else {
+      amenities.push('WiFi', 'Air Conditioning', 'Basic Facilities');
+    }
+  }
 
   // Prepare receipt data
   const receiptData = {
-    referenceNumber: booking.referenceNumber,
+    referenceNumber: booking._id?.toString().slice(-8).toUpperCase() || 'N/A',
     bookingDetails: {
-      roomName: booking.room.name,
-      location: booking.room.location,
-      checkInDate: formatDate(booking.startDate),
-      checkOutDate: formatDate(booking.endDate),
-      checkInTime: booking.checkInTime,
-      checkOutTime: booking.checkOutTime,
-      numberOfDays: Math.ceil(
-        (new Date(booking.endDate).getTime() -
-          new Date(booking.startDate).getTime()) /
-          (1000 * 60 * 60 * 24)
-      ),
-      subtotal: booking.totalPrice * 0.85, // Mock calculation - service fee is 15%
-      serviceFee: booking.totalPrice * 0.15,
+      roomName: room.title || 'Room',
+      location: room.location?.city
+        ? `${room.location.city}, ${room.location.country || ''}`
+        : 'N/A',
+      checkInDate: formatDate(booking.checkIn),
+      checkOutDate: formatDate(booking.checkOut),
+      checkInTime: booking.checkInTime || '2:00 PM',
+      checkOutTime: booking.checkOutTime || '12:00 PM',
+      numberOfDays: calculateDuration(booking.checkIn, booking.checkOut),
+      subtotal: basePrice,
+      serviceFee,
+      cleaningFee,
+      tax,
       total: booking.totalPrice,
     },
     paymentMethod: booking.paymentMethod || 'card',
-    date: new Date(booking.bookingDate || Date.now()).toLocaleDateString(
+    paymentStatus: booking.paymentStatus || 'pending',
+    date: new Date(booking.createdAt || Date.now()).toLocaleDateString(
       'en-US',
       {
         month: 'long',
@@ -248,7 +319,7 @@ const ViewBooking = () => {
         year: 'numeric',
       }
     ),
-    time: new Date(booking.bookingDate || Date.now()).toLocaleTimeString(
+    time: new Date(booking.createdAt || Date.now()).toLocaleTimeString(
       'en-US',
       {
         hour: '2-digit',
@@ -287,10 +358,10 @@ const ViewBooking = () => {
             {/* Room Images */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden mb-6">
               <div className="relative h-64 md:h-72 bg-gray-200 dark:bg-gray-700">
-                {booking.room.images && booking.room.images.length > 0 ? (
+                {room.images && room.images.length > 0 ? (
                   <img
-                    src={booking.room.images[0]}
-                    alt={booking.room.name}
+                    src={room.images[0]}
+                    alt={room.title}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -302,15 +373,18 @@ const ViewBooking = () => {
 
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  {booking.room.name}
+                  {room.title || 'Room'}
                 </h2>
                 <div className="flex items-center text-gray-600 dark:text-gray-300 mb-4">
                   <FiMapPin className="mr-2" />
-                  {booking.room.location}
+                  {room.location?.city
+                    ? `${room.location.city}, ${room.location.country || ''}`
+                    : 'Location not specified'}
                 </div>
 
                 <p className="text-gray-700 dark:text-gray-300 mb-6">
-                  {booking.room.description}
+                  {room.description ||
+                    'No description available for this room.'}
                 </p>
 
                 {/* Booking Dates & Times */}
@@ -323,10 +397,10 @@ const ViewBooking = () => {
                       </h3>
                     </div>
                     <p className="text-gray-700 dark:text-gray-300">
-                      {formatDate(booking.startDate)}
+                      {formatDate(booking.checkIn)}
                     </p>
                     <p className="text-gray-700 dark:text-gray-300 font-medium mt-1">
-                      {booking.checkInTime}
+                      {booking.checkInTime || '2:00 PM'}
                     </p>
                   </div>
 
@@ -338,11 +412,23 @@ const ViewBooking = () => {
                       </h3>
                     </div>
                     <p className="text-gray-700 dark:text-gray-300">
-                      {formatDate(booking.endDate)}
+                      {formatDate(booking.checkOut)}
                     </p>
                     <p className="text-gray-700 dark:text-gray-300 font-medium mt-1">
-                      {booking.checkOutTime}
+                      {booking.checkOutTime || '12:00 PM'}
                     </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center mb-4">
+                  <FiClock className="text-blue-500 mr-2" />
+                  <div>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Duration:{' '}
+                    </span>
+                    <span className="text-gray-700 dark:text-gray-300">
+                      {calculateDuration(booking.checkIn, booking.checkOut)}
+                    </span>
                   </div>
                 </div>
 
@@ -352,20 +438,32 @@ const ViewBooking = () => {
                     Amenities
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {booking.room.amenities.map(
-                      (amenity: string, index: number) => (
-                        <div
-                          key={index}
-                          className="flex items-center text-gray-700 dark:text-gray-300">
-                          <span className="mr-2 text-blue-500">
-                            {getAmenityIcon(amenity)}
-                          </span>
-                          {amenity}
-                        </div>
-                      )
-                    )}
+                    {amenities.map((amenity: string, index: number) => (
+                      <div
+                        key={index}
+                        className="flex items-center text-gray-700 dark:text-gray-300">
+                        <span className="mr-2 text-blue-500">
+                          {getAmenityIcon(amenity)}
+                        </span>
+                        {amenity}
+                      </div>
+                    ))}
                   </div>
                 </div>
+
+                {/* Special Requests */}
+                {booking.specialRequests && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
+                      Your Special Requests
+                    </h3>
+                    <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-gray-700 dark:text-gray-300">
+                        {booking.specialRequests}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Cancellation Policy */}
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
@@ -374,9 +472,17 @@ const ViewBooking = () => {
                     Cancellation Policy
                   </h3>
                   <p className="text-gray-700 dark:text-gray-300">
-                    {booking.room.cancellationPolicy ||
-                      'Please contact the host for cancellation policy details.'}
+                    {room.cancellationPolicy ||
+                      'Free cancellation up to 48 hours before check-in. After that, the cancellation policy may result in a partial or no refund.'}
                   </p>
+
+                  {cancelDetails &&
+                    !cancelDetails.canCancel &&
+                    cancelDetails.reason && (
+                      <p className="mt-2 text-red-600 dark:text-red-400 font-medium">
+                        {cancelDetails.reason}
+                      </p>
+                    )}
                 </div>
               </div>
             </div>
@@ -395,7 +501,7 @@ const ViewBooking = () => {
                     Reference number
                   </span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    {booking.referenceNumber}
+                    {booking._id?.toString().slice(-8).toUpperCase() || 'N/A'}
                   </span>
                 </div>
 
@@ -405,7 +511,7 @@ const ViewBooking = () => {
                   </span>
                   <span className="text-gray-900 dark:text-white">
                     {new Date(
-                      booking.bookingDate || Date.now()
+                      booking.createdAt || Date.now()
                     ).toLocaleDateString()}
                   </span>
                 </div>
@@ -414,8 +520,8 @@ const ViewBooking = () => {
                   <span className="text-gray-600 dark:text-gray-400">
                     Space type
                   </span>
-                  <span className="text-gray-900 dark:text-white">
-                    Meeting Space
+                  <span className="text-gray-900 dark:text-white capitalize">
+                    {room.type || 'Space'}
                   </span>
                 </div>
 
@@ -425,7 +531,7 @@ const ViewBooking = () => {
                       Payment status
                     </span>
                     <span className="capitalize text-gray-900 dark:text-white">
-                      {booking.paymentStatus || 'Paid'}
+                      {booking.paymentStatus || 'Pending'}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -433,7 +539,9 @@ const ViewBooking = () => {
                       Payment method
                     </span>
                     <span className="capitalize text-gray-900 dark:text-white">
-                      {booking.paymentMethod || 'Credit Card'}
+                      {booking.paymentMethod === 'property'
+                        ? 'Pay at Property'
+                        : booking.paymentMethod || 'Not specified'}
                     </span>
                   </div>
                 </div>
@@ -442,21 +550,47 @@ const ViewBooking = () => {
                 <div className="pt-2">
                   <div className="flex justify-between mb-2">
                     <span className="text-gray-600 dark:text-gray-400">
-                      Subtotal
+                      Base price
                     </span>
                     <span className="text-gray-900 dark:text-white">
-                      ₱{(booking.totalPrice * 0.85).toLocaleString()}
+                      ₱{basePrice.toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Service fee
-                    </span>
-                    <span className="text-gray-900 dark:text-white">
-                      ₱{(booking.totalPrice * 0.15).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-lg font-medium pt-2 border-t  dark:text-light border-gray-200 dark:border-gray-700">
+
+                  {serviceFee > 0 && (
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Service fee
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        ₱{serviceFee.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {cleaningFee > 0 && (
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Cleaning fee
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        ₱{cleaningFee.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {tax > 0 && (
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Tax
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        ₱{tax.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-lg font-medium pt-2 border-t dark:text-light border-gray-200 dark:border-gray-700">
                     <span>Total</span>
                     <span>₱{booking.totalPrice.toLocaleString()}</span>
                   </div>
@@ -472,16 +606,33 @@ const ViewBooking = () => {
                   View & Download Receipt
                 </button>
 
-                {/* Only show cancel button if booking is not already cancelled or completed */}
-                {booking.status !== 'cancelled' &&
-                  booking.status !== 'completed' && (
-                    <button
-                      onClick={handleCancelBooking}
-                      className="w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors">
-                      <FiXCircle className="mr-2" />
-                      Cancel Booking
-                    </button>
-                  )}
+                {/* Only show cancel button if booking is not already cancelled, completed or rejected */}
+                {!['cancelled', 'completed', 'rejected'].includes(
+                  booking.bookingStatus
+                ) && (
+                  <button
+                    onClick={handleCancelBooking}
+                    disabled={isCancelling || !cancelDetails?.canCancel}
+                    className={`w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium 
+                      ${
+                        cancelDetails?.canCancel
+                          ? 'text-red-700 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50'
+                          : 'text-gray-500 bg-gray-100 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed'
+                      }
+                      transition-colors`}>
+                    {isCancelling ? (
+                      <>
+                        <FiLoader className="animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <FiXCircle className="mr-2" />
+                        Cancel Booking
+                      </>
+                    )}
+                  </button>
+                )}
 
                 {/* Contact Host */}
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
@@ -489,29 +640,73 @@ const ViewBooking = () => {
                     Host Information
                   </h4>
                   <p className="text-gray-700 dark:text-gray-300 mb-2">
-                    {booking.room.hostName}
+                    {host.firstName
+                      ? `${host.firstName} ${host.lastName || ''}`
+                      : 'Host information not available'}
                   </p>
 
-                  <div className="flex space-x-2">
-                    <a
-                      href={`mailto:${booking.room.hostEmail}`}
-                      className="flex items-center justify-center py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors">
-                      <FiMessageSquare className="mr-2" />
-                      Message
-                    </a>
-                    <a
-                      href={`tel:${booking.room.hostContact}`}
-                      className="flex items-center justify-center py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors">
-                      <FiPhone className="mr-2" />
-                      Call
-                    </a>
-                  </div>
+                  {host.email && host.phoneNumber && (
+                    <div className="flex space-x-2">
+                      <a
+                        href={`mailto:${host.email}`}
+                        className="flex items-center justify-center py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors">
+                        <FiMessageSquare className="mr-2" />
+                        Message
+                      </a>
+                      <a
+                        href={`tel:${host.phoneNumber}`}
+                        className="flex items-center justify-center py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors">
+                        <FiPhone className="mr-2" />
+                        Call
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Cancellation Information - Show if cancelled */}
+      {booking.bookingStatus === 'cancelled' && booking.cancellationDetails && (
+        <div className="max-w-5xl mx-auto mt-6">
+          <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-xl">
+            <h3 className="text-lg font-medium text-red-800 dark:text-red-400 mb-3 flex items-center">
+              <FiXCircle className="mr-2" />
+              Cancellation Details
+            </h3>
+            <div className="space-y-2 text-red-700 dark:text-red-300">
+              <p>
+                <span className="font-medium">Cancelled on:</span>{' '}
+                {new Date(
+                  booking.cancellationDetails.cancelledAt
+                ).toLocaleString()}
+              </p>
+              <p>
+                <span className="font-medium">Cancelled by:</span>{' '}
+                {booking.cancellationDetails.cancelledBy === 'user'
+                  ? 'You'
+                  : booking.cancellationDetails.cancelledBy === 'host'
+                  ? 'Host'
+                  : 'Admin'}
+              </p>
+              {booking.cancellationDetails.reason && (
+                <p>
+                  <span className="font-medium">Reason:</span>{' '}
+                  {booking.cancellationDetails.reason}
+                </p>
+              )}
+              {booking.cancellationDetails.refundAmount > 0 && (
+                <p>
+                  <span className="font-medium">Refund amount:</span> ₱
+                  {booking.cancellationDetails.refundAmount.toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Receipt Modal */}
       {showReceipt && (
@@ -528,10 +723,187 @@ const ViewBooking = () => {
               </button>
             </div>
             <div className="p-4">
-              <Receipt {...receiptData} />
+              {/* Inline Receipt */}
+              <div className="bg-white print:bg-white text-gray-900 print:p-0 font-sans">
+                {/* Receipt Header */}
+                <div className="mb-6 flex flex-col items-center print:mb-4">
+                  {receiptData.companyLogo ? (
+                    <img
+                      src={receiptData.companyLogo}
+                      alt="OpenSpace Logo"
+                      className="h-12 mb-2 print:h-10"
+                    />
+                  ) : (
+                    <h2 className="text-xl font-bold mb-1">OpenSpace</h2>
+                  )}
+                  <h1 className="text-2xl font-bold mb-1 print:text-xl">
+                    Booking Receipt
+                  </h1>
+                  <p className="text-sm text-gray-600">
+                    Reference Number: {receiptData.referenceNumber}
+                  </p>
+                </div>
+
+                {/* Payment Information */}
+                <div className="mb-6 border-b border-gray-300 pb-4 print:mb-4 print:pb-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Date:</span>
+                    <span>{receiptData.date}</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Time:</span>
+                    <span>{receiptData.time}</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Payment Method:</span>
+                    <span className="capitalize">
+                      {receiptData.paymentMethod === 'property'
+                        ? 'Pay at Property'
+                        : receiptData.paymentMethod}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Payment Status:</span>
+                    <span className="capitalize">
+                      {receiptData.paymentStatus === 'paid' ? (
+                        <span className="text-green-600 flex items-center">
+                          <FiCheck className="mr-1" />{' '}
+                          {receiptData.paymentStatus}
+                        </span>
+                      ) : (
+                        receiptData.paymentStatus
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Booking Details */}
+                <div className="mb-6 border-b border-gray-300 pb-4 print:mb-4 print:pb-3">
+                  <h3 className="font-bold mb-3 text-lg">Booking Details</h3>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Space:</span>
+                    <span className="font-medium">
+                      {receiptData.bookingDetails.roomName}
+                    </span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Location:</span>
+                    <span>{receiptData.bookingDetails.location}</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Check-in:</span>
+                    <span>
+                      {receiptData.bookingDetails.checkInDate} at{' '}
+                      {receiptData.bookingDetails.checkInTime}
+                    </span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Check-out:</span>
+                    <span>
+                      {receiptData.bookingDetails.checkOutDate} at{' '}
+                      {receiptData.bookingDetails.checkOutTime}
+                    </span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Duration:</span>
+                    <span>{receiptData.bookingDetails.numberOfDays}</span>
+                  </div>
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="mb-6 print:mb-4">
+                  <h3 className="font-bold mb-3 text-lg">Price Details</h3>
+
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Base Price:</span>
+                    <span>
+                      ₱{receiptData.bookingDetails.subtotal.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between mb-1">
+                    <span className="text-gray-600">Service Fee:</span>
+                    <span>
+                      ₱{receiptData.bookingDetails.serviceFee.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {receiptData.bookingDetails.cleaningFee &&
+                    receiptData.bookingDetails.cleaningFee > 0 && (
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-600">Cleaning Fee:</span>
+                        <span>
+                          ₱
+                          {receiptData.bookingDetails.cleaningFee.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+
+                  {receiptData.bookingDetails.tax &&
+                    receiptData.bookingDetails.tax > 0 && (
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-600">Tax:</span>
+                        <span>
+                          ₱{receiptData.bookingDetails.tax.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+
+                  <div className="flex justify-between mt-3 font-bold text-lg border-t border-gray-300 pt-2 print:mt-2 print:pt-2">
+                    <span>Total:</span>
+                    <span>
+                      ₱{receiptData.bookingDetails.total.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="text-center text-sm text-gray-600 mt-8 print:mt-6">
+                  <p>Thank you for choosing OpenSpace!</p>
+                  <p className="print:hidden">
+                    For any inquiries, please contact support@openspace.com
+                  </p>
+                  <p className="mt-2 print:mt-1">
+                    This is an electronic receipt. No signature required.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+              <button
+                onClick={handleSendReceiptEmail}
+                className="px-4 py-2 border border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium flex items-center">
+                <FiMessageSquare className="mr-2" />
+                Email Receipt
+              </button>
+
+              <button
+                onClick={() => {
+                  window.print();
+                }}
+                className="px-4 py-2 bg-darkBlue text-white dark:bg-light dark:text-darkBlue rounded-lg hover:opacity-90 transition-colors text-sm font-medium flex items-center">
+                <FiDownload className="mr-2" />
+                Print Receipt
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {showCancelModal && (
+        <CancelBookingModal
+          isOpen={showCancelModal}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleConfirmCancellation}
+          bookingDetails={{
+            roomName: booking.room?.title || 'Room',
+            checkInDate: booking.checkIn,
+            checkOutDate: booking.checkOut,
+            refundAmount: cancelDetails?.refundAmount || 0,
+            refundPercentage: cancelDetails?.refundPercentage || 0,
+            totalAmount: booking.totalPrice || 0,
+          }}
+        />
       )}
     </div>
   );

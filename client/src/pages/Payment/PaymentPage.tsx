@@ -1,26 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
   FiArrowLeft,
   FiCreditCard,
-  FiCheck,
   FiClock,
   FiMapPin,
   FiCalendar,
   FiInfo,
+  FiAlertCircle,
+  FiUser,
+  FiLoader,
 } from 'react-icons/fi';
 import { MdOutlinePayments } from 'react-icons/md';
 import { FaWallet } from 'react-icons/fa';
 import { FaCcVisa, FaCcMastercard, FaCcAmex } from 'react-icons/fa';
+import { bookingApi } from '../../services/bookingApi';
+import { useAuth } from '../../contexts/AuthContext';
 
 const PaymentPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isVerified } = useAuth();
   const [bookingDetails, setBookingDetails] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<
     'gcash' | 'maya' | 'card' | 'property'
   >('card');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bookingCreated, setBookingCreated] = useState<any>(null);
   const [formData, setFormData] = useState({
     cardNumber: '',
     cardHolder: '',
@@ -28,6 +35,8 @@ const PaymentPage = () => {
     cvv: '',
     accountNumber: '',
     saveForFuture: false,
+    guestCount: 1,
+    specialRequests: '',
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -35,14 +44,25 @@ const PaymentPage = () => {
   useEffect(() => {
     if (location.state?.bookingDetails) {
       setBookingDetails(location.state.bookingDetails);
+      // Initialize guest count from booking details if available
+      if (location.state.bookingDetails.guestCount) {
+        setFormData((prev) => ({
+          ...prev,
+          guestCount: location.state.bookingDetails.guestCount,
+        }));
+      }
     } else {
       // If no state is passed, redirect to home
       navigate('/');
     }
   }, [location, navigate]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value,
@@ -57,67 +77,373 @@ const PaymentPage = () => {
     }
   };
 
+  const handleMobileNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+
+    if (value.length > 0 && !value.startsWith('09')) {
+      if (value.startsWith('9')) {
+        value = '0' + value;
+      } else {
+        value = '09';
+      }
+    }
+
+    // Limit to 11 digits
+    if (value.length > 11) {
+      value = value.slice(0, 11);
+    }
+
+    setFormData({
+      ...formData,
+      accountNumber: value,
+    });
+
+    if (errors.accountNumber) {
+      setErrors({
+        ...errors,
+        accountNumber: '',
+      });
+    }
+  };
+
+  <input
+    type="text"
+    name="accountNumber"
+    value={formData.accountNumber}
+    onChange={handleMobileNumberChange}
+    placeholder="09XXXXXXXXX"
+    maxLength={11}
+    className={`w-full p-3 border ${
+      errors.accountNumber
+        ? 'border-red-500'
+        : 'border-gray-300 dark:border-gray-600'
+    } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+  />;
+
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
-    if (paymentMethod === 'card') {
-      if (!formData.cardNumber.trim()) {
-        newErrors.cardNumber = 'Card number is required';
-      } else if (!/^\d{16}$/.test(formData.cardNumber.replace(/\s/g, ''))) {
-        newErrors.cardNumber = 'Invalid card number format';
-      }
+    switch (paymentMethod) {
+      case 'card':
+        // Card validation logic (unchanged)
+        const cleanedCardNumber = formData.cardNumber.replace(/\s/g, '');
+        if (!cleanedCardNumber) {
+          newErrors.cardNumber = 'Card number is required';
+        } else if (!/^\d{16}$/.test(cleanedCardNumber)) {
+          newErrors.cardNumber = 'Card number must be 16 digits';
+        }
 
-      if (!formData.cardHolder.trim()) {
-        newErrors.cardHolder = 'Cardholder name is required';
-      }
+        if (!formData.cardHolder.trim()) {
+          newErrors.cardHolder = 'Cardholder name is required';
+        }
 
-      if (!formData.expiryDate.trim()) {
-        newErrors.expiryDate = 'Expiry date is required';
-      } else if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(formData.expiryDate)) {
-        newErrors.expiryDate = 'Invalid format (MM/YY)';
-      }
+        if (!formData.expiryDate.trim()) {
+          newErrors.expiryDate = 'Expiry date is required';
+        } else {
+          const [month, year] = formData.expiryDate.split('/');
+          const currentYear = new Date().getFullYear() % 100;
+          const currentMonth = new Date().getMonth() + 1;
 
-      if (!formData.cvv.trim()) {
-        newErrors.cvv = 'CVV is required';
-      } else if (!/^\d{3,4}$/.test(formData.cvv)) {
-        newErrors.cvv = 'Invalid CVV';
-      }
-    } else if (paymentMethod === 'gcash' || paymentMethod === 'maya') {
-      if (!formData.accountNumber.trim()) {
-        newErrors.accountNumber = 'Mobile number is required';
-      } else if (!/^(09|\+639)\d{9}$/.test(formData.accountNumber)) {
-        newErrors.accountNumber = 'Invalid mobile number format';
-      }
+          if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(formData.expiryDate)) {
+            newErrors.expiryDate = 'Invalid format (MM/YY)';
+          } else if (
+            parseInt(year) < currentYear ||
+            (parseInt(year) === currentYear && parseInt(month) < currentMonth)
+          ) {
+            newErrors.expiryDate = 'Card has expired';
+          }
+        }
+
+        if (!formData.cvv.trim()) {
+          newErrors.cvv = 'CVV is required';
+        } else if (!/^\d{3,4}$/.test(formData.cvv)) {
+          newErrors.cvv = 'CVV must be 3 or 4 digits';
+        }
+        break;
+
+      case 'gcash':
+      case 'maya':
+        // Mobile payment validation
+        if (!formData.accountNumber) {
+          newErrors.accountNumber = 'Mobile number is required';
+        } else if (!/^09\d{9}$/.test(formData.accountNumber)) {
+          newErrors.accountNumber =
+            'Invalid mobile number format (must start with 09 and be 11 digits)';
+        }
+        break;
+
+      case 'property':
+        // Property payment validation
+        if (!isVerified()) {
+          newErrors.paymentMethod = 'Only verified users can pay at property';
+        }
+        break;
+    }
+
+    // Validate guest count
+    if (formData.guestCount < 1) {
+      newErrors.guestCount = 'At least one guest is required';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const createBooking = async () => {
+    if (!bookingDetails) return null;
+
+    // Format dates for API request
+    const checkIn = new Date(bookingDetails.checkInDate);
+    const checkOut = new Date(bookingDetails.checkOutDate);
+
+    // Set times if provided
+    if (bookingDetails.checkInTime) {
+      const timeMatch = bookingDetails.checkInTime.match(
+        /(\d+):(\d+)\s*([APap][Mm])/
+      );
+      if (timeMatch) {
+        const [, hours, minutes, period] = timeMatch;
+        let hour = parseInt(hours);
+        if (period.toUpperCase() === 'PM' && hour < 12) hour += 12;
+        if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
+        checkIn.setHours(hour, parseInt(minutes));
+      }
+    }
+
+    if (bookingDetails.checkOutTime) {
+      const timeMatch = bookingDetails.checkOutTime.match(
+        /(\d+):(\d+)\s*([APap][Mm])/
+      );
+      if (timeMatch) {
+        const [, hours, minutes, period] = timeMatch;
+        let hour = parseInt(hours);
+        if (period.toUpperCase() === 'PM' && hour < 12) hour += 12;
+        if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
+        checkOut.setHours(hour, parseInt(minutes));
+      }
+    }
+
+    // Booking data structure
+    const bookingData = {
+      roomId: bookingDetails.roomId,
+      checkIn: checkIn.toISOString(),
+      checkOut: checkOut.toISOString(),
+      guests: Number(formData.guestCount),
+      totalPrice: bookingDetails.total,
+      priceBreakdown: {
+        basePrice: bookingDetails.subtotal,
+        serviceFee: bookingDetails.serviceFee,
+      },
+      paymentMethod: paymentMethod, // Use the payment method directly
+      specialRequests: formData.specialRequests,
+    };
+
+    console.log('Sending booking data with payment method:', paymentMethod);
+
+    try {
+      const response = await bookingApi.createBooking(bookingData);
+
+      if (response.success) {
+        console.log('Booking created successfully:', response.data);
+        return response.data;
+      } else {
+        console.error('Server returned error:', response);
+        toast.error(response.message || 'Failed to create booking');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      toast.error('Error creating booking. Please try again.');
+      return null;
+    }
+  };
+
+  const processCardPayment = async (bookingId: string) => {
+    try {
+      const cleanedCardNumber = formData.cardNumber.replace(/\s/g, '');
+      const [month, year] = formData.expiryDate.split('/');
+      const formattedExpiryDate = `${month.padStart(2, '0')}/${year}`;
+
+      console.log('Processing card payment with details:', {
+        cardNumber: `${cleanedCardNumber.slice(
+          0,
+          4
+        )}...${cleanedCardNumber.slice(-4)}`,
+        expiryDate: formattedExpiryDate,
+        hasCardholderName: !!formData.cardHolder,
+        hasCVV: !!formData.cvv,
+      });
+
+      const response = await bookingApi.processCardPayment(bookingId, {
+        cardNumber: cleanedCardNumber,
+        expiryDate: formattedExpiryDate,
+        cvv: formData.cvv,
+        cardholderName: formData.cardHolder,
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Error processing card payment:', error);
+      return { success: false, message: 'Error processing card payment' };
+    }
+  };
+
+  const processMobilePayment = async (bookingId: string) => {
+    try {
+      if (!formData.accountNumber) {
+        throw new Error('Mobile number is required');
+      }
+
+      console.log(
+        `Processing ${paymentMethod} payment with number:`,
+        formData.accountNumber
+      );
+
+      const response = await bookingApi.processMobilePayment(
+        bookingId,
+        paymentMethod as 'gcash' | 'maya',
+        formData.accountNumber
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || `${paymentMethod} payment failed`);
+      }
+
+      return response;
+    } catch (error) {
+      console.error(`Error processing ${paymentMethod} payment:`, error);
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : `Error processing ${paymentMethod} payment`,
+      };
+    }
+  };
+
+  const processPayment = async (bookingId: string) => {
+    try {
+      let response;
+
+      console.log(
+        `Processing payment for method: ${paymentMethod}, bookingId: ${bookingId}`
+      );
+
+      switch (paymentMethod) {
+        case 'card':
+          response = await processCardPayment(bookingId);
+          break;
+
+        case 'gcash':
+        case 'maya':
+          response = await processMobilePayment(bookingId);
+          break;
+
+        case 'property':
+          // Pay at property doesn't need payment processing
+          return { success: true, message: 'Booking created successfully' };
+
+        default:
+          throw new Error('Unsupported payment method');
+      }
+
+      if (!response || !response.success) {
+        throw new Error(response?.message || 'Payment processing failed');
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Payment processing failed';
+      toast.error(errorMessage);
+      return { success: false, message: errorMessage };
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     setIsProcessing(true);
+    toast.info('Processing your booking...', {
+      autoClose: false,
+      toastId: 'booking-process',
+    });
 
-    // Simulate payment processing
-    setTimeout(() => {
+    try {
+      // Step 1: Create booking
+      console.log('Creating booking...');
+      const booking = await createBooking();
+      if (!booking) {
+        toast.dismiss('booking-process');
+        toast.error('Failed to create booking');
+        setIsProcessing(false);
+        return;
+      }
+
+      console.log('Booking created successfully:', booking);
+      setBookingCreated(booking);
+      toast.dismiss('booking-process');
+
+      // Step 2: Process payment (not needed for pay at property)
+      if (paymentMethod !== 'property') {
+        toast.info('Processing payment...', {
+          autoClose: false,
+          toastId: 'payment-process',
+        });
+
+        console.log(
+          `Processing ${paymentMethod} payment for booking:`,
+          booking._id
+        );
+        const paymentResult = await processPayment(booking._id);
+
+        toast.dismiss('payment-process');
+
+        if (!paymentResult.success) {
+          toast.error(paymentResult.message || 'Payment failed');
+          setIsProcessing(false);
+          return;
+        }
+
+        console.log('Payment processed successfully:', paymentResult);
+      }
+
+      // Step 3: Redirect to confirmation page
+      toast.success('Booking successful!');
+      setTimeout(() => {
+        setIsProcessing(false);
+        navigate('/payment/confirmation', {
+          state: {
+            bookingDetails: {
+              ...bookingDetails,
+              guestCount: formData.guestCount,
+              specialRequests: formData.specialRequests,
+            },
+            bookingId: booking._id,
+            paymentMethod,
+            referenceNumber:
+              booking.referenceNumber ||
+              `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+          },
+        });
+      }, 1500);
+    } catch (error) {
+      toast.dismiss('booking-process');
+      toast.dismiss('payment-process');
+      console.error('Error during booking/payment process:', error);
+      toast.error('Something went wrong. Please try again.');
       setIsProcessing(false);
-      // In a real app, you would process payment and get a response
-      navigate('/payment/confirmation', {
-        state: {
-          bookingDetails,
-          paymentMethod,
-          // Generate a random reference number for the receipt
-          referenceNumber: `REF-${Math.floor(100000 + Math.random() * 900000)}`,
-        },
-      });
-    }, 2000);
+    }
   };
 
   // Format card number with spaces
-  const formatCardNumber = (value: string) => {
+  const formatCardNumber = (value: string): string => {
     const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
     const matches = v.match(/\d{4,16}/g);
     const match = (matches && matches[0]) || '';
@@ -150,6 +476,27 @@ const PaymentPage = () => {
     }
   };
 
+  // Format expiry date with slash
+  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+
+    if (value.length > 2) {
+      value = `${value.slice(0, 2)}/${value.slice(2, 4)}`;
+    }
+
+    setFormData({
+      ...formData,
+      expiryDate: value,
+    });
+
+    if (errors.expiryDate) {
+      setErrors({
+        ...errors,
+        expiryDate: '',
+      });
+    }
+  };
+
   if (!bookingDetails) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-darkBlue">
@@ -174,6 +521,53 @@ const PaymentPage = () => {
           {/* Payment form section */}
           <div className="col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+              {/* Guest Information */}
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4 flex items-center">
+                  <FiUser className="mr-2 text-blue-500" />
+                  Guest Information
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Number of Guests
+                    </label>
+                    <input
+                      type="number"
+                      name="guestCount"
+                      value={formData.guestCount}
+                      onChange={handleInputChange}
+                      min="1"
+                      max={bookingDetails.maxGuests || 10}
+                      className={`w-full p-3 border ${
+                        errors.guestCount
+                          ? 'border-red-500'
+                          : 'border-gray-300 dark:border-gray-600'
+                      } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                    />
+                    {errors.guestCount && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.guestCount}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Special Requests (optional)
+                    </label>
+                    <textarea
+                      name="specialRequests"
+                      value={formData.specialRequests}
+                      onChange={handleInputChange}
+                      placeholder="Any special requirements or preferences..."
+                      rows={3}
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <h2 className="text-xl font-semibold mb-4 flex items-center">
                 <MdOutlinePayments className="mr-2 text-blue-500" />
                 Payment Method
@@ -231,6 +625,22 @@ const PaymentPage = () => {
                 </button>
               </div>
 
+              {/* Show error for non-verified users trying to pay at property */}
+              {paymentMethod === 'property' && !isVerified() && (
+                <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-start">
+                  <FiAlertCircle className="text-red-600 dark:text-red-400 mt-1 mr-2 flex-shrink-0" />
+                  <div>
+                    <p className="text-red-600 dark:text-red-400 font-medium">
+                      User verification required
+                    </p>
+                    <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-1">
+                      Only verified users can select pay at property. Please
+                      verify your account or choose a different payment method.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit}>
                 {/* Credit Card Form */}
                 {paymentMethod === 'card' && (
@@ -253,10 +663,13 @@ const PaymentPage = () => {
                               : 'border-gray-300 dark:border-gray-600'
                           } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
                         />
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex space-x-1">
+                        <div className="absolute top-1/2 right-3 transform -translate-y-1/2 flex space-x-1">
                           <FaCcVisa className="text-blue-600" size={24} />
-                          <FaCcMastercard className="text-red-500" size={24} />
-                          <FaCcAmex className="text-gray-400" size={24} />
+                          <FaCcMastercard
+                            className="text-orange-600"
+                            size={24}
+                          />
+                          <FaCcAmex className="text-blue-400" size={24} />
                         </div>
                       </div>
                       {errors.cardNumber && (
@@ -298,7 +711,7 @@ const PaymentPage = () => {
                           type="text"
                           name="expiryDate"
                           value={formData.expiryDate}
-                          onChange={handleInputChange}
+                          onChange={handleExpiryDateChange}
                           placeholder="MM/YY"
                           maxLength={5}
                           className={`w-full p-3 border ${
@@ -319,7 +732,7 @@ const PaymentPage = () => {
                           CVV
                         </label>
                         <input
-                          type="text"
+                          type="password"
                           name="cvv"
                           value={formData.cvv}
                           onChange={handleInputChange}
@@ -342,16 +755,16 @@ const PaymentPage = () => {
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="saveForFuture"
                         name="saveForFuture"
+                        id="saveForFuture"
                         checked={formData.saveForFuture}
                         onChange={handleInputChange}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
                       <label
                         htmlFor="saveForFuture"
-                        className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                        Save this card for future bookings
+                        className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                        Save card for future bookings
                       </label>
                     </div>
                   </div>
@@ -364,18 +777,21 @@ const PaymentPage = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Mobile Number
                       </label>
-                      <input
-                        type="text"
-                        name="accountNumber"
-                        value={formData.accountNumber}
-                        onChange={handleInputChange}
-                        placeholder="09123456789"
-                        className={`w-full p-3 border ${
-                          errors.accountNumber
-                            ? 'border-red-500'
-                            : 'border-gray-300 dark:border-gray-600'
-                        } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          name="accountNumber"
+                          value={formData.accountNumber}
+                          onChange={handleInputChange}
+                          placeholder="09XXXXXXXXX"
+                          maxLength={11}
+                          className={`w-full p-3 border ${
+                            errors.accountNumber
+                              ? 'border-red-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                        />
+                      </div>
                       {errors.accountNumber && (
                         <p className="mt-1 text-sm text-red-600">
                           {errors.accountNumber}
@@ -383,12 +799,15 @@ const PaymentPage = () => {
                       )}
                     </div>
 
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        After clicking "Complete Booking", you will receive a
-                        payment request on your{' '}
-                        {paymentMethod === 'gcash' ? 'GCash' : 'Maya'} app.
-                      </p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <FiInfo className="text-blue-500 mr-2 flex-shrink-0" />
+                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                          {paymentMethod === 'gcash'
+                            ? 'After submitting, you will receive a GCash payment request to confirm your booking.'
+                            : 'After submitting, you will receive a Maya payment request to confirm your booking.'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -396,43 +815,56 @@ const PaymentPage = () => {
                 {/* Pay at Property */}
                 {paymentMethod === 'property' && (
                   <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <h3 className="font-medium mb-2 flex items-center">
-                        <FiInfo className="mr-2 text-blue-500" /> Pay at
-                        Property Details
-                      </h3>
-                      <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                        <li className="flex items-start">
-                          <FiCheck className="mt-1 mr-2 text-green-500" />
-                          No payment is required now
-                        </li>
-                        <li className="flex items-start">
-                          <FiCheck className="mt-1 mr-2 text-green-500" />
-                          Your booking will be confirmed immediately
-                        </li>
-                        <li className="flex items-start">
-                          <FiClock className="mt-1 mr-2 text-blue-500" />
-                          Full payment will be collected at the property
-                        </li>
-                        <li className="flex items-start">
-                          <FiCheck className="mt-1 mr-2 text-green-500" />
-                          Accepted payment methods at property: Cash,
-                          Credit/Debit cards, GCash, and Maya
-                        </li>
-                      </ul>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                      <div className="flex items-start">
+                        <FiInfo className="text-blue-500 mt-1 mr-2 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            Pay at Property Information
+                          </p>
+                          <ul className="text-sm text-blue-700 dark:text-blue-300 ml-4 mt-2 list-disc space-y-1">
+                            <li>
+                              Your booking request will be sent to the host
+                            </li>
+                            <li>
+                              Once approved, you'll receive a confirmation
+                            </li>
+                            <li>Full payment is due upon arrival</li>
+                            <li>
+                              Be prepared with the exact amount or a payment
+                              card
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
                     </div>
+
+                    {errors.paymentMethod && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.paymentMethod}
+                      </p>
+                    )}
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={isProcessing}
-                  className="w-full mt-6 py-3 px-4 bg-darkBlue text-white dark:bg-light dark:text-darkBlue hover:opacity-90 font-medium rounded-lg transition-colors flex items-center justify-center">
+                  disabled={
+                    isProcessing ||
+                    (paymentMethod === 'property' && !isVerified())
+                  }
+                  className={`w-full mt-6 py-3 px-4 bg-darkBlue text-white dark:bg-light dark:text-darkBlue hover:opacity-90 font-medium rounded-lg transition-colors flex items-center justify-center ${
+                    paymentMethod === 'property' && !isVerified()
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }`}>
                   {isProcessing ? (
                     <>
-                      <div className="h-5 w-5 border-2 border-light border-t-transparent dark:border-darkBlue dark:border-t-transparent rounded-full animate-spin mr-2"></div>
+                      <FiLoader className="animate-spin mr-2" />
                       Processing...
                     </>
+                  ) : paymentMethod === 'property' ? (
+                    'Request Booking'
                   ) : (
                     'Complete Booking'
                   )}
@@ -456,37 +888,46 @@ const PaymentPage = () => {
                   </p>
                 </div>
 
+                {bookingDetails.roomImage && (
+                  <div className="aspect-video rounded-lg overflow-hidden">
+                    <img
+                      src={bookingDetails.roomImage}
+                      alt={bookingDetails.roomName}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
                 <div className="border-t border-b border-gray-200 dark:border-gray-700 py-4 space-y-2">
                   <div className="flex items-center text-sm">
                     <FiCalendar className="mr-2 text-blue-500" />
-                    <div>
-                      <span className="font-medium">Check-in:</span>{' '}
-                      {bookingDetails.checkInDate} at{' '}
-                      {bookingDetails.checkInTime}
-                    </div>
+                    <span className="font-medium">Check-in:</span>
+                    <span className="ml-2">
+                      {bookingDetails.checkInDate}, {bookingDetails.checkInTime}
+                    </span>
                   </div>
                   <div className="flex items-center text-sm">
                     <FiCalendar className="mr-2 text-blue-500" />
-                    <div>
-                      <span className="font-medium">Check-out:</span>{' '}
-                      {bookingDetails.checkOutDate} at{' '}
+                    <span className="font-medium">Check-out:</span>
+                    <span className="ml-2">
+                      {bookingDetails.checkOutDate},{' '}
                       {bookingDetails.checkOutTime}
-                    </div>
+                    </span>
                   </div>
                   <div className="flex items-center text-sm">
                     <FiClock className="mr-2 text-blue-500" />
-                    <div>
-                      <span className="font-medium">Duration:</span>{' '}
+                    <span className="font-medium">Duration:</span>
+                    <span className="ml-2">
                       {bookingDetails.numberOfDays}{' '}
                       {bookingDetails.numberOfDays > 1 ? 'days' : 'day'}
-                    </div>
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">
-                      Room rate
+                      Subtotal
                     </span>
                     <span>₱{bookingDetails.subtotal.toLocaleString()}</span>
                   </div>
