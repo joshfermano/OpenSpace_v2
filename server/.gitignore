@@ -7,8 +7,8 @@
 .env.production
 
 # images
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
