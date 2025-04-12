@@ -6,9 +6,12 @@
 .env.test
 .env.production
 
-# images
+# images - using more comprehensive patterns
 **/*.png
 **/*.jpg
 **/*.jpeg
 **/*.gif
 **/*.webp
+**/*.svg
+**/uploads/
+**/public/images/
