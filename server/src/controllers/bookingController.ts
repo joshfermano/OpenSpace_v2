@@ -2,13 +2,11 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking';
 import Room from '../models/Room';
-import User, { IUser } from '../models/User';
+import User from '../models/User';
 import Earning from '../models/Earnings';
 
 // Define a custom Request type that includes the user property
-interface AuthRequest extends Request {
-  user?: IUser;
-}
+type AuthRequest = Request;
 
 export const getAllBookings = async (
   req: Request,

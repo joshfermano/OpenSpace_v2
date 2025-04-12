@@ -5,9 +5,7 @@ import Room from '../models/Room';
 import Booking from '../models/Booking';
 
 // Define a custom Request type that includes the user property
-interface AuthRequest extends Request {
-  user?: IUser;
-}
+type AuthRequest = Request;
 
 // Helper function to ensure admin authentication
 function ensureAdmin(req: AuthRequest, res: Response): IUser | null {

@@ -9,9 +9,7 @@ import mongoose from 'mongoose';
 import 'dotenv/config';
 
 // Define a custom Request type that includes the user property
-interface AuthRequest extends Request {
-  user?: IUser;
-}
+type AuthRequest = Request;
 
 const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
