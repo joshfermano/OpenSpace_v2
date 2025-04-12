@@ -20,13 +20,15 @@ dist-ssr
 .env.test
 .env.production
 
-# images
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
-*.svg
+# images - using more comprehensive patterns
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.svg
+**/assets/images/
+**/public/images/
 
 # Editor directories and files
 .vscode/*
