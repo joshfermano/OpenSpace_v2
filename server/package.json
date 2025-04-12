@@ -11,7 +11,7 @@
     "preinstall": "node src/scripts/install-types.js",
     "prebuild": "npm run preinstall",
     "watch": "tsc -w",
-    "render-postbuild": "node dist/scripts/create-directories.js",
+    "render-postbuild": "node src/scripts/create-directories.js",
     "render-build": "npm install && npm run build && npm run render-postbuild",
     "test": "jest",
     "deploy-build": "npm install && tsc --project tsconfig.deploy.json",
