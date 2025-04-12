@@ -27,7 +27,6 @@ dist-ssr
 **/*.gif
 **/*.webp
 **/*.svg
-**/assets/images/
 **/public/images/
 
 # Editor directories and files
