@@ -71,7 +71,7 @@ app.use('/api/email-verification', emailVerificationRoutes_1.default);
 app.use('/api/admin/earnings', adminEarningsRoutes_1.default);
 // Health check route
 app.get('/api/health', (_req, res) => {
-    res.status(200).json({ status: 'ok', message: 'Server is running' });
+    res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 const createUploadDirs = () => __awaiter(void 0, void 0, void 0, function* () {
     const dirs = [
