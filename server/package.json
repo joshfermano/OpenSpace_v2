@@ -9,9 +9,10 @@
     "Dev": "npx ts-node --transpile-only -P tsconfig.dev.json src/server.ts",
     "build": "node src/types/build-without-types.js",
     "preinstall": "node src/scripts/install-types.js || echo 'Type installation failed, continuing'",
+    "postinstall": "npm rebuild bcrypt --build-from-source || echo 'bcrypt rebuild failed, continuing'",
     "prebuild": "echo 'Skipping preinstall during build'",
     "watch": "tsc -w",
-    "render-build": "npm install && npm install --save-dev typescript @types/express @types/node @types/uuid @types/jsonwebtoken @types/cookie-parser @types/cors @types/multer && node src/scripts/copy-express-types.js && node src/scripts/remove-express-file.js && node build-without-types.js",
+    "render-build": "npm install && node src/scripts/debug-environment.js && npm rebuild bcrypt --build-from-source && npm install --save-dev typescript @types/express @types/node @types/uuid @types/jsonwebtoken @types/cookie-parser @types/cors @types/multer && node src/scripts/copy-express-types.js && node src/scripts/remove-express-file.js && node build-without-types.js",
     "deploy-build": "npm install && npx tsc --project tsconfig.deploy.json",
     "prod-build": "npm install && npm run build && npm prune --production",
     "fix-build": "rimraf dist && npm install --save-dev @types/express && npm install && npx tsc --project tsconfig.deploy.json"
@@ -23,7 +24,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
     "@types/nodemailer": "^6.4.17",
-    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
