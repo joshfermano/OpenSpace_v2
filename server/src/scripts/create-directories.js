@@ -1,6 +1,5 @@
-// Script to create necessary upload directories after build on Render
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 console.log('Creating upload directories...');
 

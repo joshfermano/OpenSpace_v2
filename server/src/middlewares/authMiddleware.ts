@@ -8,16 +8,9 @@ interface JwtPayload {
   role: string;
 }
 
-// Define a custom Request type that includes the user property
+// Define a custom Request type that extends Express.Request
 interface AuthRequest extends express.Request {
   user?: IUser;
-  body: any;
-  query: any;
-  params: any;
-  headers: any;
-  cookies: any;
-  files?: any;
-  file?: any;
 }
 
 export const protect = async (
@@ -110,5 +103,4 @@ export const adminOnly = (
   }
 };
 
-// Export the AuthRequest interface so other files can use it
 export type { AuthRequest };
