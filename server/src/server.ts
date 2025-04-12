@@ -1,11 +1,10 @@
 import express from 'express';
+import path from 'path';
 import { checkSupabaseConnection } from './config/supabase';
 import { initializeStorage } from './services/imageService';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import 'dotenv/config';
-import path from 'path';
 import fs from 'fs/promises';
 
 // Import routes
@@ -52,10 +51,11 @@ app.use(
   })
 );
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../uploads')));
-app.use(cookieParser());
 
 // API routes
 app.use('/api/admin', adminRoutes);

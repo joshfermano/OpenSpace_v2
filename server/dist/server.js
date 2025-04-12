@@ -13,13 +13,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const path_1 = __importDefault(require("path"));
 const supabase_1 = require("./config/supabase");
 const imageService_1 = require("./services/imageService");
 const mongoose_1 = __importDefault(require("mongoose"));
 const cors_1 = __importDefault(require("cors"));
-const cookie_parser_1 = __importDefault(require("cookie-parser"));
 require("dotenv/config");
-const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
 // Import routes
 const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
@@ -55,10 +54,11 @@ app.use((0, cors_1.default)({
     },
     credentials: true,
 }));
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, 'uploads')));
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../public/uploads')));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use(express_1.default.static(path_1.default.join(__dirname, '../uploads')));
-app.use((0, cookie_parser_1.default)());
 // API routes
 app.use('/api/admin', adminRoutes_1.default);
 app.use('/api/auth', authRoutes_1.default);

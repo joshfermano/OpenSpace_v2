@@ -3,12 +3,10 @@ import mongoose from 'mongoose';
 import Review from '../models/Review';
 import Room from '../models/Room';
 import Booking from '../models/Booking';
-import { IUser } from '../models/User';
+import {} from '../models/User';
 
 // Define a custom Request type that includes the user property
-interface AuthRequest extends Request {
-  user?: IUser;
-}
+type AuthRequest = Request;
 
 // Add interfaces for handling anonymous user reviews
 interface AnonymousUser {

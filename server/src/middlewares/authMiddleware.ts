@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User, { IUser } from '../models/User';
+import User from '../models/User';
 
 interface JwtPayload {
   userId: string;
@@ -9,9 +9,7 @@ interface JwtPayload {
 }
 
 // Define a custom Request type that extends Express.Request with all necessary properties
-interface AuthRequest extends Request {
-  user?: IUser;
-}
+type AuthRequest = Request;
 
 export const protect = async (
   req: Request,
