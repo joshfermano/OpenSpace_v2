@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only -P tsconfig.dev.json src/server.ts",
     "Dev": "npx ts-node --transpile-only -P tsconfig.dev.json src/server.ts",
-    "build": "tsc -p tsconfig.deploy.json",
+    "build": "tsc",
     "preinstall": "node src/scripts/install-types.js || echo 'Type installation failed, continuing'",
     "prebuild": "echo 'Skipping preinstall during build'",
     "watch": "tsc -w",
