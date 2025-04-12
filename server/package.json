@@ -4,13 +4,19 @@
   "description": "",
   "main": "dist/server.js",
   "scripts": {
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only -P tsconfig.dev.json src/server.ts",
+    "Dev": "npx ts-node --transpile-only -P tsconfig.dev.json src/server.ts",
+    "build": "npx tsc -p tsconfig.deploy.json",
     "preinstall": "node src/scripts/install-types.js",
     "prebuild": "npm run preinstall",
-    "build": "tsc -p tsconfig.deploy.json",
-    "start": "node dist/server.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "render-postbuild": "node src/scripts/create-directories.js",
-    "render-build": "npm install && npm run build && npm run render-postbuild"
+    "watch": "tsc -w",
+    "postinstall": "",
+    "render-build": "npm install && npm run build",
+    "test": "jest",
+    "deploy-build": "npm install && npx tsc --project tsconfig.deploy.json",
+    "prod-build": "npm install && npm run build && npm prune --production",
+    "fix-build": "rimraf dist && npm install && npx tsc --project tsconfig.deploy.json"
   },
   "keywords": [],
   "author": "",
@@ -29,7 +35,6 @@
     "mongoose": "^8.13.2",
     "multer": "^1.4.5-lts.2",
     "nodemailer": "^6.10.0",
-    "typescript": "^5.8.2",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -44,6 +49,7 @@
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "ts2js": "^4.1.0-dev.5"
+    "ts2js": "^4.1.0-dev.5",
+    "typescript": "^5.8.3"
   }
 }

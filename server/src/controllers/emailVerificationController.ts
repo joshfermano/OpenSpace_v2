@@ -12,7 +12,7 @@ type Request = express.Request;
 type Response = express.Response;
 
 // Define a custom Request type that includes the user property
-interface AuthRequest extends Request {
+interface AuthRequest extends express.Request {
   user?: IUser;
 }
 

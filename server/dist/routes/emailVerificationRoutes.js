@@ -10,6 +10,7 @@ const router = express_1.default.Router();
 // Test email route (for troubleshooting only)
 router.post('/test-email', emailVerificationController_1.testEmailDelivery);
 // Protected routes (require authentication)
+router.use(authMiddleware_1.protect);
 router.post('/send-otp', authMiddleware_1.protect, emailVerificationController_1.sendEmailVerificationOTP);
 router.post('/verify-otp', authMiddleware_1.protect, emailVerificationController_1.verifyEmailWithOTP);
 router.post('/resend-otp', authMiddleware_1.protect, emailVerificationController_1.resendEmailVerification);

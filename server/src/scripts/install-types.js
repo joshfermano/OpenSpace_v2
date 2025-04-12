@@ -1,7 +1,8 @@
-// Script to ensure TypeScript type definitions are properly installed
 const { execSync } = require('child_process');
 
-const requiredTypes = [
+console.log('Installing TypeScript declaration files...');
+
+const typePackages = [
   '@types/express',
   '@types/bcrypt',
   '@types/cookie-parser',
@@ -11,15 +12,16 @@ const requiredTypes = [
   '@types/node',
 ];
 
-console.log('Checking TypeScript type definitions...');
-
 try {
-  const command = `npm install --save-dev ${requiredTypes.join(' ')}`;
-  console.log(`Installing dependencies: ${command}`);
-  execSync(command, { stdio: 'inherit' });
-  console.log('TypeScript type definitions installed successfully.');
+  // Use npx to ensure proper permissions
+  execSync(`npx -y npm install --save-dev ${typePackages.join(' ')}`, {
+    stdio: 'inherit',
+  });
+  console.log('Successfully installed TypeScript declaration files');
 } catch (error) {
-  console.error('Failed to install TypeScript type definitions:', error);
-  // Continue with the process even if installation fails
-  // as the dependencies might already be installed
+  console.error(
+    'Error installing TypeScript declaration files:',
+    error.message
+  );
+  process.exit(1);
 }

@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import jwt from 'jsonwebtoken';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 
 interface JwtPayload {
   userId: string;
@@ -8,10 +8,22 @@ interface JwtPayload {
   role: string;
 }
 
+// Define a custom Request type that includes the user property
+interface AuthRequest extends express.Request {
+  user?: IUser;
+  body: any;
+  query: any;
+  params: any;
+  headers: any;
+  cookies: any;
+  files?: any;
+  file?: any;
+}
+
 export const protect = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
 ): Promise<void> => {
   try {
     let token;
@@ -71,7 +83,7 @@ export const protect = async (
     }
 
     // Attach user to request
-    req.user = user;
+    (req as AuthRequest).user = user;
     console.log('User attached to request, role:', user.role);
     next();
   } catch (error: any) {
@@ -84,9 +96,9 @@ export const protect = async (
 };
 
 export const adminOnly = (
-  req: Request,
-  res: Response,
-  next: NextFunction
+  req: AuthRequest,
+  res: express.Response,
+  next: express.NextFunction
 ): void => {
   if (req.user && req.user.role === 'admin') {
     next();
@@ -97,3 +109,6 @@ export const adminOnly = (
     });
   }
 };
+
+// Export the AuthRequest interface so other files can use it
+export type { AuthRequest };

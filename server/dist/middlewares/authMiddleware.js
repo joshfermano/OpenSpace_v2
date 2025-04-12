@@ -15,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminOnly = exports.protect = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
-// Note: The type declaration has been moved to the types/express.d.ts file
 const protect = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         let token;
