@@ -74,26 +74,23 @@ const About = () => {
             that inspire creativity and productivity.
           </p>
         </div>
+
         {/* Mission Section */}
-        <div className="grid md:grid-cols-2 gap-10 items-center">
-          <div className="space-y-5 order-2 md:order-1">
-            <h2 className="text-3xl font-bold">Our Mission</h2>
-            <p className="text-gray-700 dark:text-gray-300">
-              OpenSpace was founded with a simple mission: to connect
-              professionals with inspiring workspaces where they can thrive. We
-              believe that the right environment can fuel innovation and
-              collaboration.
-            </p>
-            <p className="text-gray-700 dark:text-gray-300">
-              By making it easy to discover, compare, and book workspaces, we're
-              helping to create a more flexible and productive work culture for
-              everyone.
-            </p>
-          </div>
-          <div className="border-2 border-darkBlue dark:border-light rounded-lg h-64 md:h-80 bg-gray-100 dark:bg-gray-800 flex items-center justify-center order-1 md:order-2">
-            <p className="text-gray-400 italic">Mission Image</p>
-          </div>
+        <div className="max-w-3xl mx-auto text-center space-y-6">
+          <h2 className="text-3xl font-bold">Our Mission</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            OpenSpace was founded with a simple mission: to connect
+            professionals with inspiring workspaces where they can thrive. We
+            believe that the right environment can fuel innovation and
+            collaboration.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            By making it easy to discover, compare, and book workspaces, we're
+            helping to create a more flexible and productive work culture for
+            everyone.
+          </p>
         </div>
+
         {/* Features Section */}
         <div className="space-y-10">
           <h2 className="text-3xl font-bold text-center">What We Offer</h2>
