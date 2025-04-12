@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+const { execSync } = require('child_process');
 
 console.log('Installing TypeScript declaration files...');
 
@@ -14,7 +14,7 @@ const typePackages = [
 
 try {
   // Use npx to ensure proper permissions
-  execSync(`npx -y npm install --save-dev ${typePackages.join(' ')}`, {
+  execSync(`npm install --save-dev ${typePackages.join(' ')}`, {
     stdio: 'inherit',
   });
   console.log('Successfully installed TypeScript declaration files');
