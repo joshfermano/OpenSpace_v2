@@ -1,4 +1,4 @@
-import express from 'express';
+import { Request, Response, CookieOptions } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import User, { IUser } from '../models/User';
 import OtpVerification from '../models/OtpVerification';
@@ -7,12 +7,8 @@ import {
   sendTestEmail,
 } from '../services/emailService';
 
-// Use Express namespace types instead of importing directly
-type Request = express.Request;
-type Response = express.Response;
-
 // Define a custom Request type that includes the user property
-interface AuthRequest extends express.Request {
+interface AuthRequest extends Request {
   user?: IUser;
 }
 
@@ -196,7 +192,7 @@ export const verifyEmailWithOTP = async (
     const token = generateToken(user);
 
     // Set the token in a cookie
-    const cookieOptions = {
+    const cookieOptions: CookieOptions = {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

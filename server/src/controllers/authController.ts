@@ -1,4 +1,4 @@
-import express from 'express';
+import { Request, Response, CookieOptions } from 'express';
 import jwt from 'jsonwebtoken';
 import { sendPasswordResetEmail } from '../services/emailService';
 import crypto from 'crypto';
@@ -8,13 +8,8 @@ import { sendVerificationEmail } from '../services/emailService';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 
-// Use Express namespace types instead of importing directly
-type Request = express.Request;
-type Response = express.Response;
-type CookieOptions = express.CookieOptions;
-
 // Define a custom Request type that includes the user property
-interface AuthRequest extends express.Request {
+interface AuthRequest extends Request {
   user?: IUser;
 }
 

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Application } from 'express';
 import { checkSupabaseConnection } from './config/supabase';
 import { initializeStorage } from './services/imageService';
 import mongoose from 'mongoose';
@@ -20,7 +20,7 @@ import emailVerificationRoutes from './routes/emailVerificationRoutes';
 import adminEarningsRoutes from './routes/adminEarningsRoutes';
 
 // Create Express app
-const app: express.Application = express();
+const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
 // Correctly serve static files from both src/uploads and public/uploads

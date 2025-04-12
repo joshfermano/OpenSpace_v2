@@ -1,4 +1,4 @@
-import express from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User, { IUser } from '../models/User';
 
@@ -8,15 +8,15 @@ interface JwtPayload {
   role: string;
 }
 
-// Define a custom Request type that extends Express.Request
-interface AuthRequest extends express.Request {
+// Define a custom Request type that extends Express.Request with all necessary properties
+interface AuthRequest extends Request {
   user?: IUser;
 }
 
 export const protect = async (
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): Promise<void> => {
   try {
     let token;
@@ -90,8 +90,8 @@ export const protect = async (
 
 export const adminOnly = (
   req: AuthRequest,
-  res: express.Response,
-  next: express.NextFunction
+  res: Response,
+  next: NextFunction
 ): void => {
   if (req.user && req.user.role === 'admin') {
     next();

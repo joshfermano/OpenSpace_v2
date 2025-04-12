@@ -1,16 +1,12 @@
-import express from 'express';
+import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking';
 import Room from '../models/Room';
 import User, { IUser } from '../models/User';
 import Earning from '../models/Earnings';
 
-// Use Express namespace types instead of importing directly
-type Request = express.Request;
-type Response = express.Response;
-
 // Define a custom Request type that includes the user property
-interface AuthRequest extends express.Request {
+interface AuthRequest extends Request {
   user?: IUser;
 }
 
