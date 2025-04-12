@@ -8,6 +8,11 @@ import { sendVerificationEmail } from '../services/emailService';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
+
 const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -17,7 +22,7 @@ interface CustomCookieOptions extends CookieOptions {
   expires: Date;
 }
 
-function ensureAuthenticated(req: Request, res: Response): IUser | null {
+function ensureAuthenticated(req: AuthRequest, res: Response): IUser | null {
   if (!req.user) {
     res.status(401).json({
       success: false,
@@ -25,7 +30,7 @@ function ensureAuthenticated(req: Request, res: Response): IUser | null {
     });
     return null;
   }
-  return req.user as IUser;
+  return req.user;
 }
 
 const generateToken = (user: IUser): string => {
@@ -215,7 +220,7 @@ export const logout = (_req: Request, res: Response): void => {
 };
 
 export const getCurrentUser = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -329,7 +334,7 @@ export const initiateEmailVerification = async (
 };
 
 export const resendEmailVerification = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -432,7 +437,7 @@ export const resendEmailVerification = async (
 
 // Verify email with OTP
 export const verifyEmailWithOTP = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -530,7 +535,7 @@ export const sendPhoneVerificationOTP = async (
 
 // Initiate phone verification
 export const initiatePhoneVerification = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -588,7 +593,7 @@ export const initiatePhoneVerification = async (
 
 // Verify phone with OTP
 export const verifyPhoneWithOTP = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -651,7 +656,7 @@ export const verifyPhoneWithOTP = async (
 };
 
 export const uploadIdVerification = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -703,7 +708,7 @@ export const uploadIdVerification = async (
 };
 
 export const becomeHost = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -923,7 +928,7 @@ export const resetPassword = async (
 };
 
 export const updatePassword = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

@@ -2,7 +2,12 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Earning from '../models/Earnings';
 import Booking from '../models/Booking';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
+
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 interface IPopulatedHost {
   _id: mongoose.Types.ObjectId;
@@ -61,8 +66,8 @@ interface IPopulatedEarningWithBooking {
   createdAt: Date;
 }
 
-const ensureAdmin = (req: Request, res: Response): boolean => {
-  if (req.user.role !== 'admin') {
+const ensureAdmin = (req: AuthRequest, res: Response): boolean => {
+  if (!req.user || req.user.role !== 'admin') {
     res.status(403).json({
       success: false,
       message: 'Only administrators can access this resource',
@@ -74,7 +79,7 @@ const ensureAdmin = (req: Request, res: Response): boolean => {
 
 // Get platform revenue summary
 export const getPlatformRevenueSummary = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -178,7 +183,7 @@ export const getPlatformRevenueSummary = async (
 
 // Get top performing hosts
 export const getTopPerformingHosts = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -260,7 +265,7 @@ export const getTopPerformingHosts = async (
 
 // Get transaction history
 export const getTransactionHistory = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -363,7 +368,7 @@ export const getTransactionHistory = async (
 
 // Get dashboard summary
 export const getDashboardSummary = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -455,7 +460,7 @@ export const getDashboardSummary = async (
 };
 
 export const getHostPayoutDetails = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -561,7 +566,7 @@ export const getHostPayoutDetails = async (
 
 // Process host payout
 export const processHostPayout = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

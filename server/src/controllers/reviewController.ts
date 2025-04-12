@@ -3,6 +3,12 @@ import mongoose from 'mongoose';
 import Review from '../models/Review';
 import Room from '../models/Room';
 import Booking from '../models/Booking';
+import { IUser } from '../models/User';
+
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 // Add interfaces for handling anonymous user reviews
 interface AnonymousUser {
@@ -20,7 +26,7 @@ interface ReviewWithAnonymousUser {
 
 // Create a new review
 export const createReview = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -133,7 +139,7 @@ export const createReview = async (
 };
 
 export const checkReviewEligibility = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -298,7 +304,7 @@ export const getRoomReviews = async (
 
 // Get user's reviews
 export const getUserReviews = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -343,7 +349,7 @@ export const getUserReviews = async (
 
 // Get host's received reviews
 export const getHostReviews = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -411,7 +417,7 @@ export const getHostReviews = async (
 
 // Get a single review by ID
 export const getReviewById = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -487,7 +493,7 @@ export const getReviewById = async (
 
 // Update a review
 export const updateReview = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -553,7 +559,7 @@ export const updateReview = async (
 
 // Delete a review
 export const deleteReview = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

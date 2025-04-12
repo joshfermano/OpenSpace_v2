@@ -8,17 +8,15 @@ interface JwtPayload {
   role: string;
 }
 
-// Augment Express Request type
-declare global {
-  namespace Express {
-    interface Request {
-      user: IUser | undefined;
-    }
-  }
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
 }
 
+// Note: The type declaration has been moved to the types/express.d.ts file
+
 export const protect = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -93,7 +91,7 @@ export const protect = async (
 };
 
 export const adminOnly = (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): void => {

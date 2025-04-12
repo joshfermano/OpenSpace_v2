@@ -32,6 +32,15 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -40,22 +49,45 @@ const express_1 = __importDefault(require("express"));
 const userController = __importStar(require("../controllers/userController"));
 const authMiddleware_1 = require("../middlewares/authMiddleware");
 const multer_1 = __importDefault(require("multer"));
-// Configure multer for file uploads
+const path_1 = __importDefault(require("path"));
+const promises_1 = __importDefault(require("fs/promises"));
+const createUploadDir = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield promises_1.default.mkdir('./public/uploads/profiles', { recursive: true });
+    }
+    catch (err) {
+        console.error('Error creating upload directory:', err);
+    }
+});
+createUploadDir();
 const storage = multer_1.default.diskStorage({
     destination: function (_req, _file, cb) {
-        cb(null, './src/uploads/');
+        cb(null, './public/uploads/profiles/');
     },
     filename: function (_req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
+        const ext = path_1.default.extname(file.originalname);
+        cb(null, `profile-${uniqueSuffix}${ext}`);
     },
 });
-const upload = (0, multer_1.default)({ storage });
+const fileFilter = (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    }
+    else {
+        cb(new Error('Not an image! Please upload only images.'));
+    }
+};
+const upload = (0, multer_1.default)({
+    storage,
+    fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 },
+});
 const router = express_1.default.Router();
 router.use(authMiddleware_1.protect);
 // Profile management
 router.get('/profile', userController.getUserProfile);
-router.put('/profile', userController.updateProfile);
+router.put('/edit-profile', userController.updateProfile);
 router.put('/password', userController.changePassword);
 // Profile image upload
 router.post('/profile/upload-image', upload.single('profileImage'), userController.uploadProfileImage);
@@ -66,10 +98,7 @@ router.put('/notifications/:id/read', userController.markNotificationAsRead);
 // Favorites/wishlist management
 router.get('/saved-rooms', userController.getSavedRooms);
 router.post('/save-room', userController.saveRoom);
-router.delete('/saved-rooms/:roomId', userController.unsaveRoom);
-// Admin-only routes
-router.use('/admin', authMiddleware_1.adminOnly);
-router.get('/admin/users', userController.getAllUsers);
-router.get('/admin/users/:userId', userController.getUserById);
-router.put('/admin/users/:userId', userController.updateUserById);
+router.delete('/unsave-rooms/:roomId', userController.unsaveRoom);
+// Get user (for viewing other users' profiles)
+router.get('/:userId', userController.getUserById);
 exports.default = router;

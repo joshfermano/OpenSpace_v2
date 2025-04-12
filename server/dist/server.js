@@ -13,6 +13,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const supabase_1 = require("./config/supabase");
+const imageService_1 = require("./services/imageService");
 const mongoose_1 = __importDefault(require("mongoose"));
 const cors_1 = __importDefault(require("cors"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
@@ -20,6 +22,7 @@ require("dotenv/config");
 const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
 // Import routes
+const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const roomRoutes_1 = __importDefault(require("./routes/roomRoutes"));
@@ -27,9 +30,13 @@ const bookingRoutes_1 = __importDefault(require("./routes/bookingRoutes"));
 const reviewRoutes_1 = __importDefault(require("./routes/reviewRoutes"));
 const earningsRoutes_1 = __importDefault(require("./routes/earningsRoutes"));
 const emailVerificationRoutes_1 = __importDefault(require("./routes/emailVerificationRoutes"));
+const adminEarningsRoutes_1 = __importDefault(require("./routes/adminEarningsRoutes"));
 // Create Express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
+// Correctly serve static files from both src/uploads and public/uploads
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, 'uploads')));
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../public/uploads')));
 // CORS configuration
 const allowedOrigins = [
     'http://localhost:5173',
@@ -51,8 +58,8 @@ app.use((0, cors_1.default)({
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use((0, cookie_parser_1.default)());
-app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads')));
 // API routes
+app.use('/api/admin', adminRoutes_1.default);
 app.use('/api/auth', authRoutes_1.default);
 app.use('/api/users', userRoutes_1.default);
 app.use('/api/rooms', roomRoutes_1.default);
@@ -60,6 +67,7 @@ app.use('/api/bookings', bookingRoutes_1.default);
 app.use('/api/reviews', reviewRoutes_1.default);
 app.use('/api/earnings', earningsRoutes_1.default);
 app.use('/api/email-verification', emailVerificationRoutes_1.default);
+app.use('/api/admin/earnings', adminEarningsRoutes_1.default);
 // Health check route
 app.get('/api/health', (_req, res) => {
     res.status(200).json({ status: 'ok', message: 'Server is running' });
@@ -89,6 +97,14 @@ const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         yield mongoose_1.default.connect(process.env.MONGO_URL);
         console.log('Connected to MongoDB');
+        // Check Supabase connection and initialize storage
+        if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+            yield (0, supabase_1.checkSupabaseConnection)();
+            yield (0, imageService_1.initializeStorage)();
+        }
+        else {
+            console.warn('Supabase credentials not found, image storage will not be available');
+        }
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
         });

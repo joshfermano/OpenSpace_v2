@@ -7,6 +7,11 @@ import {
   sendTestEmail,
 } from '../services/emailService';
 
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
+
 const generateToken = (user: IUser): string => {
   const secret = process.env.JWT_SECRET;
 
@@ -33,10 +38,8 @@ const generateOTP = (): string => {
 };
 
 // Helper function to safely get and verify the user
-const verifyUserAuth = (req: Request, res: Response): IUser | null => {
-  const user = req.user as IUser;
-
-  if (!user) {
+const verifyUserAuth = (req: AuthRequest, res: Response): IUser | null => {
+  if (!req.user) {
     res.status(401).json({
       success: false,
       message: 'Not authenticated',
@@ -44,12 +47,12 @@ const verifyUserAuth = (req: Request, res: Response): IUser | null => {
     return null;
   }
 
-  return user;
+  return req.user;
 };
 
 // Send OTP for email verification
 export const sendEmailVerificationOTP = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -123,14 +126,14 @@ export const sendEmailVerificationOTP = async (
 
 // Resend verification OTP (alias for sendEmailVerificationOTP)
 export const resendEmailVerification = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   return sendEmailVerificationOTP(req, res);
 };
 
 export const verifyEmailWithOTP = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

@@ -13,12 +13,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteRoomImage = exports.uploadRoomImages = exports.updateRoomAvailability = exports.getRoomAvailability = exports.approveRejectRoom = exports.getPendingRoomApprovals = exports.searchRooms = exports.getMyRooms = exports.getRoomsByHost = exports.deleteRoom = exports.updateRoom = exports.getRoomById = exports.getRooms = exports.createRoom = void 0;
-const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const Room_1 = __importDefault(require("../models/Room"));
 const User_1 = __importDefault(require("../models/User"));
 const Booking_1 = __importDefault(require("../models/Booking"));
+const imageService_1 = require("../services/imageService");
+const imageService_2 = require("../services/imageService");
 // Create a new room listing
 const createRoom = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -687,30 +688,23 @@ const uploadRoomImages = (req, res) => __awaiter(void 0, void 0, void 0, functio
     try {
         const { roomId } = req.params;
         const files = req.files;
-        // Check if any files were uploaded
         if (!files || files.length === 0) {
             res.status(400).json({
                 success: false,
-                message: 'No images uploaded',
+                message: 'No files uploaded',
             });
             return;
         }
-        // Check if room exists
         const room = yield Room_1.default.findById(roomId);
         if (!room) {
-            // Delete uploaded files if room doesn't exist
-            yield Promise.all(files.map((file) => promises_1.default
-                .unlink(file.path)
-                .catch((err) => console.error('Error deleting file:', err))));
             res.status(404).json({
                 success: false,
                 message: 'Room not found',
             });
             return;
         }
-        // Check if user is authorized
+        // Verify ownership
         if (room.host.toString() !== req.user.id && req.user.role !== 'admin') {
-            // Delete uploaded files if not authorized
             yield Promise.all(files.map((file) => promises_1.default
                 .unlink(file.path)
                 .catch((err) => console.error('Error deleting file:', err))));
@@ -720,16 +714,26 @@ const uploadRoomImages = (req, res) => __awaiter(void 0, void 0, void 0, functio
             });
             return;
         }
-        // Process uploaded files
-        const imageUrls = files.map((file) => `/uploads/rooms/${path_1.default.basename(file.path)}`);
+        // Process uploaded files - upload to Supabase
+        const uploadPromises = files.map((file) => (0, imageService_1.uploadImage)(file.path, 'rooms'));
+        const imageUrls = yield Promise.all(uploadPromises);
+        // Filter out any failed uploads
+        const validImageUrls = imageUrls.filter((url) => url !== null);
+        if (validImageUrls.length === 0) {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to upload images',
+            });
+            return;
+        }
         // Add new images to room
-        room.images = [...room.images, ...imageUrls];
+        room.images = [...room.images, ...validImageUrls];
         yield room.save();
         res.status(200).json({
             success: true,
             message: 'Images uploaded successfully',
             data: {
-                images: imageUrls,
+                images: validImageUrls,
             },
         });
     }
@@ -746,7 +750,7 @@ exports.uploadRoomImages = uploadRoomImages;
 const deleteRoomImage = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { roomId, imageId } = req.params;
-        // Check if room exists
+        // Find room
         const room = yield Room_1.default.findById(roomId);
         if (!room) {
             res.status(404).json({
@@ -755,15 +759,15 @@ const deleteRoomImage = (req, res) => __awaiter(void 0, void 0, void 0, function
             });
             return;
         }
-        // Check if user is authorized
+        // Verify ownership
         if (room.host.toString() !== req.user.id && req.user.role !== 'admin') {
             res.status(403).json({
                 success: false,
-                message: 'Not authorized to delete images from this room',
+                message: 'Not authorized to delete images for this room',
             });
             return;
         }
-        // Find image in room's images array
+        // Find image in the room's images array
         const imageIndex = room.images.findIndex((img) => img.includes(imageId));
         if (imageIndex === -1) {
             res.status(404).json({
@@ -772,15 +776,9 @@ const deleteRoomImage = (req, res) => __awaiter(void 0, void 0, void 0, function
             });
             return;
         }
-        // Get full image path
-        const imagePath = path_1.default.join(__dirname, '../..', 'src', room.images[imageIndex]);
-        // Remove image from filesystem
-        try {
-            yield promises_1.default.unlink(imagePath);
-        }
-        catch (error) {
-            console.error('Error deleting image file:', error);
-        }
+        // Delete from Supabase
+        const imageUrl = room.images[imageIndex];
+        yield (0, imageService_2.deleteImage)(imageUrl);
         // Remove image from room's images array
         room.images.splice(imageIndex, 1);
         yield room.save();

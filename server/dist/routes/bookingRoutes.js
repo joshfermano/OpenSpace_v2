@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// server/src/routes/bookingRoutes.ts
 const express_1 = __importDefault(require("express"));
 const bookingController = __importStar(require("../controllers/bookingController"));
 const authMiddleware_1 = require("../middlewares/authMiddleware");
@@ -46,13 +47,17 @@ router.use(authMiddleware_1.protect);
 router.post('/', bookingController.createBooking);
 router.get('/my/bookings', bookingController.getUserBookings);
 router.get('/:bookingId', bookingController.getBookingById);
-router.post('/payment', bookingController.processCardPayment);
+router.post('/payment', bookingController.processPayment);
 router.patch('/:bookingId/cancel', bookingController.cancelBooking);
+router.get('/:bookingId/can-cancel', bookingController.canCancelBooking);
 router.get('/room/:roomId/can-review', bookingController.canReviewRoom);
 // Host booking management
 router.get('/host/bookings', bookingController.getHostBookings);
 router.patch('/:bookingId/confirm', bookingController.confirmBooking);
+router.patch('/:bookingId/reject', bookingController.rejectBooking);
 router.patch('/:bookingId/complete', bookingController.completeBooking);
+router.patch('/:bookingId/mark-paid', bookingController.markPaymentReceived);
+router.post('/:bookingId/send-receipt', bookingController.sendReceiptEmail);
 // Admin booking management
 router.use('/admin', authMiddleware_1.adminOnly);
 router.get('/admin/all', bookingController.getAllBookings);

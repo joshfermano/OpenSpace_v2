@@ -64,8 +64,7 @@ const earningSchema = new mongoose_1.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['property', 'card'],
-        default: 'property',
+        enum: ['property', 'card', 'gcash', 'maya'],
         required: true,
     },
     availableDate: {
@@ -77,14 +76,6 @@ const earningSchema = new mongoose_1.Schema({
     },
     payoutId: {
         type: String,
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now,
     },
 }, {
     timestamps: true,

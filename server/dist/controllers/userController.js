@@ -12,11 +12,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserProfile = exports.uploadProfileImage = exports.markNotificationAsRead = exports.getNotifications = exports.updateUserById = exports.getDashboardData = exports.getSavedRooms = exports.unsaveRoom = exports.saveRoom = exports.changePassword = exports.updateProfile = exports.getUserById = exports.getAllUsers = void 0;
+exports.getUserProfile = exports.uploadProfileImage = exports.markNotificationAsRead = exports.getNotifications = exports.getDashboardData = exports.getSavedRooms = exports.unsaveRoom = exports.saveRoom = exports.changePassword = exports.updateProfile = exports.getUserById = void 0;
 const User_1 = __importDefault(require("../models/User"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const Room_1 = __importDefault(require("../models/Room"));
 const Booking_1 = __importDefault(require("../models/Booking"));
+const imageService_1 = require("../services/imageService");
+const imageService_2 = require("../services/imageService");
 // Helper function to safely access req.user
 function getUserFromRequest(req, res) {
     if (!req.user) {
@@ -26,61 +28,17 @@ function getUserFromRequest(req, res) {
         });
         return null;
     }
+    // Handle both possible structures
+    const user = req.user;
+    if (!user._id && !user.id) {
+        res.status(401).json({
+            success: false,
+            message: 'Invalid user data in request',
+        });
+        return null;
+    }
     return req.user;
 }
-// Get all users (admin only)
-const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const currentUser = getUserFromRequest(req, res);
-        if (!currentUser)
-            return;
-        // Only admin can access all users
-        if (currentUser.role !== 'admin') {
-            res.status(403).json({
-                success: false,
-                message: 'Not authorized to access this resource',
-            });
-            return;
-        }
-        // Handle pagination
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
-        // Handle filtering
-        const filter = {};
-        if (req.query.role) {
-            filter.role = req.query.role;
-        }
-        if (req.query.verificationLevel) {
-            filter.verificationLevel = req.query.verificationLevel;
-        }
-        if (req.query.isEmailVerified) {
-            filter.isEmailVerified = req.query.isEmailVerified === 'true';
-        }
-        // Get users
-        const users = yield User_1.default.find(filter)
-            .select('-password')
-            .skip(skip)
-            .limit(limit)
-            .sort({ createdAt: -1 });
-        const totalUsers = yield User_1.default.countDocuments(filter);
-        res.status(200).json({
-            success: true,
-            count: users.length,
-            totalPages: Math.ceil(totalUsers / limit),
-            currentPage: page,
-            data: users,
-        });
-    }
-    catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching users',
-            error: error.message,
-        });
-    }
-});
-exports.getAllUsers = getAllUsers;
 // Get user by ID
 const getUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -102,9 +60,7 @@ const getUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             });
             return;
         }
-        // Only admins or the user themselves can see full details
         if (req.user.role !== 'admin' && req.user.id !== userId) {
-            // For other users, return limited public information
             const publicUser = {
                 _id: user._id,
                 firstName: user.firstName,
@@ -112,6 +68,11 @@ const getUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                 profileImage: user.profileImage,
                 role: user.role,
                 hostInfo: user.hostInfo,
+                isEmailVerified: user.isEmailVerified,
+                isPhoneVerified: user.isPhoneVerified,
+                identificationDocument: user.identificationDocument,
+                verificationLevel: user.verificationLevel,
+                createdAt: user.createdAt,
             };
             res.status(200).json({
                 success: true,
@@ -133,12 +94,15 @@ const getUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.getUserById = getUserById;
-// Update user profile
 const updateProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     try {
-        const userId = req.user.id;
-        const { firstName, lastName, profileImage, address, hostInfo } = req.body;
+        // Get user ID from authenticated user
+        const currentUser = getUserFromRequest(req, res);
+        if (!currentUser)
+            return;
+        const userId = currentUser._id;
+        const { firstName, lastName, phoneNumber, profileImage, hostInfo } = req.body;
         // Check if user exists
         const user = yield User_1.default.findById(userId);
         if (!user) {
@@ -148,21 +112,18 @@ const updateProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             });
             return;
         }
-        // Update user fields
+        // Update basic user information
         if (firstName)
             user.firstName = firstName;
         if (lastName)
             user.lastName = lastName;
+        if (phoneNumber)
+            user.phoneNumber = phoneNumber;
         if (profileImage)
             user.profileImage = profileImage;
-        // Update address if provided
-        if (address) {
-            user.address = Object.assign(Object.assign({}, user.address), address);
-        }
-        // Update host info if user is a host
-        if (hostInfo && user.role === 'host') {
-            const currentDate = new Date();
-            user.hostInfo = Object.assign(Object.assign({}, user.hostInfo), { bio: hostInfo.bio || ((_a = user.hostInfo) === null || _a === void 0 ? void 0 : _a.bio) || '', languagesSpoken: hostInfo.languagesSpoken || ((_b = user.hostInfo) === null || _b === void 0 ? void 0 : _b.languagesSpoken) || [], hostSince: ((_c = user.hostInfo) === null || _c === void 0 ? void 0 : _c.hostSince) || currentDate });
+        // Update host info if provided
+        if (hostInfo && (user.role === 'host' || user.role === 'admin')) {
+            user.hostInfo = Object.assign(Object.assign({}, user.hostInfo), { bio: hostInfo.bio || ((_a = user.hostInfo) === null || _a === void 0 ? void 0 : _a.bio) || '', languagesSpoken: hostInfo.languagesSpoken || ((_b = user.hostInfo) === null || _b === void 0 ? void 0 : _b.languagesSpoken) || [], responseTime: hostInfo.responseTime || ((_c = user.hostInfo) === null || _c === void 0 ? void 0 : _c.responseTime), hostSince: ((_d = user.hostInfo) === null || _d === void 0 ? void 0 : _d.hostSince) || new Date() });
         }
         // Save updated user
         yield user.save();
@@ -446,62 +407,6 @@ const getDashboardData = (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.getDashboardData = getDashboardData;
-// Update user by ID (admin only)
-const updateUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { userId } = req.params;
-        const { firstName, lastName, role, verificationLevel, isEmailVerified, isPhoneVerified, profileImage, active, } = req.body;
-        // Check if ID is valid
-        if (!mongoose_1.default.Types.ObjectId.isValid(userId)) {
-            res.status(400).json({
-                success: false,
-                message: 'Invalid user ID',
-            });
-            return;
-        }
-        const user = yield User_1.default.findById(userId);
-        if (!user) {
-            res.status(404).json({
-                success: false,
-                message: 'User not found',
-            });
-            return;
-        }
-        // Create an object with the fields to update
-        const updateFields = {};
-        if (firstName !== undefined)
-            updateFields.firstName = firstName;
-        if (lastName !== undefined)
-            updateFields.lastName = lastName;
-        if (role !== undefined)
-            updateFields.role = role;
-        if (verificationLevel !== undefined)
-            updateFields.verificationLevel = verificationLevel;
-        if (isEmailVerified !== undefined)
-            updateFields.isEmailVerified = isEmailVerified;
-        if (isPhoneVerified !== undefined)
-            updateFields.isPhoneVerified = isPhoneVerified;
-        if (profileImage !== undefined)
-            updateFields.profileImage = profileImage;
-        if (active !== undefined)
-            updateFields.active = active;
-        // Update user with new data
-        const updatedUser = yield User_1.default.findByIdAndUpdate(userId, { $set: updateFields }, { new: true, runValidators: true }).select('-password');
-        res.status(200).json({
-            success: true,
-            message: 'User updated successfully',
-            data: updatedUser,
-        });
-    }
-    catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error updating user',
-            error: error.message,
-        });
-    }
-});
-exports.updateUserById = updateUserById;
 const getNotifications = (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         // Placeholder for notifications implementation
@@ -538,22 +443,16 @@ const markNotificationAsRead = (_req, res) => __awaiter(void 0, void 0, void 0, 
 exports.markNotificationAsRead = markNotificationAsRead;
 const uploadProfileImage = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const currentUser = getUserFromRequest(req, res);
-        if (!currentUser)
-            return;
-        const userId = currentUser._id;
         const file = req.file;
         if (!file) {
             res.status(400).json({
                 success: false,
-                message: 'No file uploaded',
+                message: 'No image uploaded',
             });
             return;
         }
-        // Get the file path for storage
-        const filePath = file.path.replace('src/', '');
-        // Update user's profile image
-        const user = yield User_1.default.findByIdAndUpdate(userId, { profileImage: filePath }, { new: true }).select('-password');
+        const userId = req.user.id;
+        const user = yield User_1.default.findById(userId);
         if (!user) {
             res.status(404).json({
                 success: false,
@@ -561,12 +460,27 @@ const uploadProfileImage = (req, res) => __awaiter(void 0, void 0, void 0, funct
             });
             return;
         }
+        // If user already has a profile image, delete the old one
+        if (user.profileImage && user.profileImage.includes('supabase')) {
+            yield (0, imageService_2.deleteImage)(user.profileImage);
+        }
+        // Upload to Supabase
+        const imageUrl = yield (0, imageService_1.uploadImage)(file.path, 'profiles');
+        if (!imageUrl) {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to upload profile image',
+            });
+            return;
+        }
+        // Update user with new profile image URL
+        user.profileImage = imageUrl;
+        yield user.save();
         res.status(200).json({
             success: true,
             message: 'Profile image uploaded successfully',
             data: {
-                profileImage: filePath,
-                user,
+                profileImage: imageUrl,
             },
         });
     }
@@ -579,7 +493,6 @@ const uploadProfileImage = (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.uploadProfileImage = uploadProfileImage;
-// Get user profile (based on authenticated user)
 const getUserProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const currentUser = getUserFromRequest(req, res);

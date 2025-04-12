@@ -18,9 +18,17 @@ require("dotenv/config");
 const connectDb = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const connectionString = process.env.MONGO_URL;
-        yield mongoose_1.default.connect(connectionString);
+        if (!connectionString) {
+            throw new Error('MONGO_URL environment variable is not defined');
+        }
+        // Add connection options for better reliability
+        yield mongoose_1.default.connect(connectionString, {
+            // These options are automatically applied in mongoose 6+ but including for clarity
+            serverSelectionTimeoutMS: 5000, // Keep trying to connect for 5 seconds
+            heartbeatFrequencyMS: 30000, // Check connection every 30 seconds
+        });
         mongoose_1.default.connection.on('connected', () => {
-            console.log('✅ MongoDB connected successfully');
+            console.log('✅ MongoDB Atlas connected successfully');
         });
         mongoose_1.default.connection.on('error', (err) => {
             console.error('❌ MongoDB connection error:', err);
@@ -36,7 +44,7 @@ const connectDb = () => __awaiter(void 0, void 0, void 0, function* () {
         return true;
     }
     catch (error) {
-        console.error('❌ Failed to connect to MongoDB:', error);
+        console.error('❌ Failed to connect to MongoDB Atlas:', error);
         return false;
     }
 });

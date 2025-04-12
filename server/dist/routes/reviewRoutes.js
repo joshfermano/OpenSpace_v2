@@ -37,18 +37,24 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const earningsController = __importStar(require("../controllers/earningsController"));
+const reviewController = __importStar(require("../controllers/reviewController"));
 const authMiddleware_1 = require("../middlewares/authMiddleware");
+const multer_1 = __importDefault(require("../config/multer"));
 const router = express_1.default.Router();
+// Public routes
+router.get('/room/:roomId', reviewController.getRoomReviews);
+// Protected routes
 router.use(authMiddleware_1.protect);
-// Host earnings routes
-router.get('/', earningsController.getHostEarnings);
-router.get('/summary', earningsController.getEarningsSummary);
-router.get('/date-range', earningsController.getEarningsByDateRange);
-router.get('/statement/:year', earningsController.generateEarningsStatement);
-router.get('/booking/:bookingId', earningsController.getBookingEarnings);
-// Admin routes
-router.use('/admin', authMiddleware_1.adminOnly);
-router.post('/admin/process-payout', earningsController.processHostPayout);
-router.patch('/admin/update-status', earningsController.updateEarningsStatus);
+// Check if user can review a room
+router.get('/eligibility/:roomId', reviewController.checkReviewEligibility);
+// Create review (needs roomId)
+router.post('/room/:roomId', multer_1.default.array('photos', 3), reviewController.createReview);
+// User's reviews
+router.get('/user', reviewController.getUserReviews);
+// Host reviews
+router.get('/host', reviewController.getHostReviews);
+// Single review operations
+router.get('/:reviewId', reviewController.getReviewById);
+router.put('/:reviewId', multer_1.default.array('photos', 3), reviewController.updateReview);
+router.delete('/:reviewId', reviewController.deleteReview);
 exports.default = router;

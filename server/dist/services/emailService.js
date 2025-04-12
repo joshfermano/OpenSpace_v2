@@ -12,9 +12,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendHostPayoutNotificationEmail = exports.sendRefundNotificationEmail = exports.sendPaymentConfirmationEmail = exports.sendHostBookingNotificationEmail = exports.sendBookingStatusUpdateEmail = exports.sendBookingConfirmationEmail = exports.sendPasswordResetEmail = exports.sendVerificationEmail = exports.sendOtpVerificationEmail = exports.sendTestEmail = void 0;
+exports.sendBookingReceiptEmail = exports.sendHostPayoutNotificationEmail = exports.sendRefundNotificationEmail = exports.sendPaymentConfirmationEmail = exports.sendHostBookingNotificationEmail = exports.sendBookingStatusUpdateEmail = exports.sendBookingConfirmationEmail = exports.sendPasswordResetEmail = exports.sendVerificationEmail = exports.sendOtpVerificationEmail = exports.sendTestEmail = void 0;
 const nodemailer_1 = __importDefault(require("nodemailer"));
 require("dotenv/config");
+const VERIFIED_SENDER = process.env.EMAIL_FROM || 'openspacereserve@gmail.com';
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -23,18 +24,11 @@ const formatCurrency = (amount) => {
 };
 // Create reusable transporter
 const createTransporter = () => {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    console.log('Email Config:', {
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        user: process.env.EMAIL_USER ? 'Set' : 'Not Set',
-        pass: process.env.EMAIL_PASSWORD ? 'Set' : 'Not Set',
-    });
+    const isDevelopment = process.env.NODE_ENV !== 'production';
     return nodemailer_1.default.createTransport({
-        service: 'gmail',
-        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-        port: Number(process.env.EMAIL_PORT) || 465,
-        secure: true, // true for 465, false for other ports
+        host: process.env.EMAIL_HOST,
+        port: Number(process.env.EMAIL_PORT),
+        secure: false,
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASSWORD,
@@ -55,7 +49,7 @@ transporter.verify((error) => {
 });
 const sendTestEmail = (to) => __awaiter(void 0, void 0, void 0, function* () {
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: 'OpenSpace Email Test',
         html: `
@@ -109,7 +103,7 @@ const sendOtpVerificationEmail = (to, firstName, otp) => __awaiter(void 0, void 
     </div>
   `;
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: 'Verify Your Email Address - OpenSpace',
         html,
@@ -166,7 +160,7 @@ const sendVerificationEmail = (to, firstName, token) => __awaiter(void 0, void 0
     const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const verificationUrl = `${baseUrl}/verify-email/${token}`;
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: 'Verify Your Email Address',
         html: `
@@ -209,7 +203,7 @@ const sendPasswordResetEmail = (to, token) => __awaiter(void 0, void 0, void 0, 
     const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${baseUrl}/reset-password/${token}`;
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: 'Reset Your Password',
         html: `
@@ -264,7 +258,7 @@ const sendBookingConfirmationEmail = (to, bookingDetails) => __awaiter(void 0, v
     `;
     }
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: 'Your OpenSpace Booking Confirmation',
         html: `
@@ -384,7 +378,7 @@ const sendBookingStatusUpdateEmail = (to, status, bookingDetails) => __awaiter(v
     `;
     }
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject,
         html: htmlContent,
@@ -409,7 +403,7 @@ const sendHostBookingNotificationEmail = (to, bookingDetails) => __awaiter(void 
             : 'Pay at Property'}</p>`
         : '';
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: '🔔 New Booking Request for Your Property',
         html: `
@@ -450,7 +444,7 @@ const sendPaymentConfirmationEmail = (to, paymentDetails) => __awaiter(void 0, v
     const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const bookingUrl = `${baseUrl}/bookings/${bookingId}`;
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: '💳 Payment Confirmation for Your OpenSpace Booking',
         html: `
@@ -490,7 +484,7 @@ const sendRefundNotificationEmail = (to, refundDetails) => __awaiter(void 0, voi
     const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const bookingUrl = `${baseUrl}/bookings/${bookingId}`;
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: '💰 Refund Processed for Your OpenSpace Booking',
         html: `
@@ -531,7 +525,7 @@ const sendHostPayoutNotificationEmail = (to, payoutDetails) => __awaiter(void 0,
     const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const earningsUrl = `${baseUrl}/host/earnings`;
     const mailOptions = {
-        from: `"OpenSpace" <${process.env.EMAIL_USER || 'khovickfermano@gmail.com'}>`,
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
         to,
         subject: '💸 Host Payout Processed - OpenSpace',
         html: `
@@ -565,3 +559,104 @@ const sendHostPayoutNotificationEmail = (to, payoutDetails) => __awaiter(void 0,
     }
 });
 exports.sendHostPayoutNotificationEmail = sendHostPayoutNotificationEmail;
+const sendBookingReceiptEmail = (to, receiptDetails) => __awaiter(void 0, void 0, void 0, function* () {
+    const { referenceNumber, bookingDetails, paymentMethod, paymentStatus, date, time, } = receiptDetails;
+    const baseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const bookingUrl = bookingDetails.bookingId
+        ? `${baseUrl}/bookings/${bookingDetails.bookingId}`
+        : `${baseUrl}/dashboard/bookings`;
+    // Format currency
+    const formatPrice = (amount) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        }).format(amount);
+    };
+    // Create HTML table for price breakdown
+    let priceBreakdownHtml = '';
+    if (bookingDetails.priceBreakdown) {
+        const { basePrice, cleaningFee, serviceFee } = bookingDetails.priceBreakdown;
+        priceBreakdownHtml = `
+      <tr>
+        <td style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Base Price (${bookingDetails.nightsCount || 1} night${bookingDetails.nightsCount > 1 ? 's' : ''})</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">${formatPrice(basePrice || 0)}</td>
+      </tr>
+      ${cleaningFee
+            ? `
+      <tr>
+        <td style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Cleaning Fee</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">${formatPrice(cleaningFee)}</td>
+      </tr>`
+            : ''}
+      ${serviceFee
+            ? `
+      <tr>
+        <td style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Service Fee</td>
+        <td style="padding: 8px; text-align: right; border-bottom: 1px solid #ddd;">${formatPrice(serviceFee)}</td>
+      </tr>`
+            : ''}
+    `;
+    }
+    const mailOptions = {
+        from: `"OpenSpace" <${VERIFIED_SENDER}>`,
+        to,
+        subject: 'Your OpenSpace Booking Receipt',
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #333;">OpenSpace Booking Receipt</h2>
+        </div>
+        
+        <div style="background-color: ${paymentMethod === 'property' ? '#fff8e1' : '#f0f8ff'}; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">${paymentMethod === 'property'
+            ? 'Pending Host Approval'
+            : 'Payment Confirmed'}</h3>
+          <p><strong>Reference Number:</strong> ${referenceNumber}</p>
+          <p><strong>Date:</strong> ${date} at ${time}</p>
+          <p><strong>Payment Method:</strong> ${paymentMethod === 'property'
+            ? 'Pay at Property'
+            : paymentMethod === 'card'
+                ? 'Credit Card'
+                : paymentMethod}</p>
+          <p><strong>Status:</strong> ${paymentStatus}</p>
+        </div>
+        
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px;">Booking Details</h3>
+        <div style="margin-bottom: 20px;">
+          <p><strong>Property:</strong> ${bookingDetails.propertyName || 'Space'}</p>
+          <p><strong>Check-in:</strong> ${bookingDetails.checkInDate} at ${bookingDetails.checkInTime}</p>
+          <p><strong>Check-out:</strong> ${bookingDetails.checkOutDate} at ${bookingDetails.checkOutTime}</p>
+          <p><strong>Guests:</strong> ${bookingDetails.guestCount || 1}</p>
+        </div>
+        
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px;">Price Details</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tbody>
+            ${priceBreakdownHtml}
+            <tr style="font-weight: bold;">
+              <td style="padding: 8px; text-align: left;">Total</td>
+              <td style="padding: 8px; text-align: right;">${formatPrice(bookingDetails.totalPrice || 0)}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${bookingUrl}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">View Booking</a>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #777; text-align: center;">
+          <p>This is an automated receipt. Please do not reply to this email.</p>
+          <p>© ${new Date().getFullYear()} OpenSpace. All rights reserved.</p>
+        </div>
+      </div>
+    `,
+    };
+    try {
+        yield transporter.sendMail(mailOptions);
+        console.log(`Booking receipt email sent to ${to}`);
+    }
+    catch (error) {
+        console.error('Error sending booking receipt email:', error);
+    }
+});
+exports.sendBookingReceiptEmail = sendBookingReceiptEmail;

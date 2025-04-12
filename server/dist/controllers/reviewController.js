@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteReview = exports.updateReview = exports.getReviewById = exports.getHostReviews = exports.getUserReviews = exports.getRoomReviews = exports.createReview = void 0;
+exports.deleteReview = exports.updateReview = exports.getReviewById = exports.getHostReviews = exports.getUserReviews = exports.getRoomReviews = exports.checkReviewEligibility = exports.createReview = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Review_1 = __importDefault(require("../models/Review"));
 const Room_1 = __importDefault(require("../models/Room"));
@@ -21,7 +21,7 @@ const Booking_1 = __importDefault(require("../models/Booking"));
 const createReview = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const userId = req.user.id;
-        const { roomId, bookingId, rating, comment, photos, isAnonymous } = req.body;
+        const { roomId, bookingId, rating, comment, isAnonymous } = req.body;
         // Validate required fields
         if (!roomId || !bookingId || !rating || !comment) {
             res.status(400).json({
@@ -31,7 +31,7 @@ const createReview = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             return;
         }
         // Check if the rating is valid (1-5)
-        if (rating < 1 || rating > 5) {
+        if (parseInt(rating) < 1 || parseInt(rating) > 5) {
             res.status(400).json({
                 success: false,
                 message: 'Rating must be between 1 and 5',
@@ -78,15 +78,21 @@ const createReview = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             });
             return;
         }
+        // Handle file uploads
+        const photoFiles = req.files;
+        let photosPaths = [];
+        if (photoFiles && photoFiles.length > 0) {
+            photosPaths = photoFiles.map((file) => `uploads/reviews/${file.filename}`);
+        }
         // Create the review
         const review = yield Review_1.default.create({
             room: roomId,
             user: userId,
             booking: bookingId,
-            rating,
+            rating: parseInt(rating),
             comment,
-            photos: photos || [],
-            isAnonymous: isAnonymous || false,
+            photos: photosPaths,
+            isAnonymous: isAnonymous === 'true',
         });
         // Update the booking with the review ID
         booking.reviewId = review._id;
@@ -108,6 +114,57 @@ const createReview = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.createReview = createReview;
+const checkReviewEligibility = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.id;
+        const { roomId } = req.params;
+        // Check if room exists
+        const room = yield Room_1.default.findById(roomId);
+        if (!room) {
+            res.status(404).json({
+                success: false,
+                message: 'Room not found',
+            });
+            return;
+        }
+        // Check if user has completed a booking for this room
+        const completedBooking = yield Booking_1.default.findOne({
+            user: userId,
+            room: roomId,
+            bookingStatus: 'completed',
+        });
+        if (!completedBooking) {
+            res.status(200).json({
+                success: true,
+                canReview: false,
+                message: 'You must complete a stay before reviewing',
+            });
+            return;
+        }
+        // Check if user already has a review for this booking
+        const existingReview = yield Review_1.default.findOne({
+            user: userId,
+            room: roomId,
+            booking: completedBooking._id,
+        });
+        res.status(200).json({
+            success: true,
+            canReview: !existingReview,
+            message: existingReview
+                ? 'You have already reviewed this stay'
+                : 'You can review this room',
+            bookingId: completedBooking._id,
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error checking review eligibility',
+            error: error.message,
+        });
+    }
+});
+exports.checkReviewEligibility = checkReviewEligibility;
 // Helper function to update room rating
 const updateRoomRating = (roomId) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -165,6 +222,7 @@ const getRoomReviews = (req, res) => __awaiter(void 0, void 0, void 0, function*
             if (review.isAnonymous) {
                 const anonymousReview = review.toObject();
                 anonymousReview.user = {
+                    _id: anonymousReview.user._id, // Keep the ID for permission checks
                     firstName: 'Anonymous',
                     lastName: 'User',
                     profileImage: null,
@@ -174,12 +232,17 @@ const getRoomReviews = (req, res) => __awaiter(void 0, void 0, void 0, function*
             return review;
         });
         const total = yield Review_1.default.countDocuments({ room: roomId });
+        // Calculate average rating
+        const allReviews = yield Review_1.default.find({ room: roomId });
+        const totalRating = allReviews.reduce((sum, review) => sum + review.rating, 0);
+        const averageRating = allReviews.length > 0 ? totalRating / allReviews.length : 0;
         res.status(200).json({
             success: true,
-            count: processedReviews.length,
+            count: total,
             totalPages: Math.ceil(total / limit),
             currentPage: page,
             data: processedReviews,
+            averageRating,
         });
     }
     catch (error) {

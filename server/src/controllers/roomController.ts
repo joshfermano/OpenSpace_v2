@@ -2,14 +2,18 @@ import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
 import Room from '../models/Room';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import Booking from '../models/Booking';
 import { uploadImage } from '../services/imageService';
 import { deleteImage } from '../services/imageService';
 
+interface AuthRequest extends Request {
+  user?: IUser;
+}
+
 // Create a new room listing
 export const createRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -187,7 +191,7 @@ export const getRooms = async (req: Request, res: Response): Promise<void> => {
 
 // Get single room by ID
 export const getRoomById = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -243,7 +247,7 @@ export const getRoomById = async (
 
 // Update room
 export const updateRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -335,7 +339,7 @@ export const updateRoom = async (
 
 // Delete room
 export const deleteRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -393,7 +397,7 @@ export const deleteRoom = async (
 
 // Get rooms by host ID
 export const getRoomsByHost = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -449,7 +453,7 @@ export const getRoomsByHost = async (
 
 // Get my rooms (for hosts)
 export const getMyRooms = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -555,7 +559,7 @@ export const searchRooms = async (
 
 // Get pending room approvals (admin only)
 export const getPendingRoomApprovals = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -600,7 +604,7 @@ export const getPendingRoomApprovals = async (
 
 // Approve or reject room (admin only)
 export const approveRejectRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -747,7 +751,7 @@ export const getRoomAvailability = async (
 
 // Update room availability
 export const updateRoomAvailability = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -805,7 +809,7 @@ export const updateRoomAvailability = async (
 };
 
 export const uploadRoomImages = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -883,7 +887,7 @@ export const uploadRoomImages = async (
 
 // Delete room image
 export const deleteRoomImage = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

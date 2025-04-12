@@ -13,24 +13,37 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.testEmailDelivery = exports.verifyEmailWithOTP = exports.resendEmailVerification = exports.sendEmailVerificationOTP = void 0;
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 const OtpVerification_1 = __importDefault(require("../models/OtpVerification"));
 const emailService_1 = require("../services/emailService");
+const generateToken = (user) => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error('JWT_SECRET is not defined in environment variables');
+    }
+    return jsonwebtoken_1.default.sign({
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+    }, secret, {
+        expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    });
+};
 // Generate a random 6-digit OTP
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 // Helper function to safely get and verify the user
 const verifyUserAuth = (req, res) => {
-    const user = req.user;
-    if (!user) {
+    if (!req.user) {
         res.status(401).json({
             success: false,
             message: 'Not authenticated',
         });
         return null;
     }
-    return user;
+    return req.user;
 };
 // Send OTP for email verification
 const sendEmailVerificationOTP = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -95,14 +108,9 @@ const resendEmailVerification = (req, res) => __awaiter(void 0, void 0, void 0, 
     return (0, exports.sendEmailVerificationOTP)(req, res);
 });
 exports.resendEmailVerification = resendEmailVerification;
-// Verify email with OTP
 const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { otp } = req.body;
-        // Get authenticated user
-        const user = verifyUserAuth(req, res);
-        if (!user)
-            return;
         if (!otp) {
             res.status(400).json({
                 success: false,
@@ -110,58 +118,61 @@ const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, funct
             });
             return;
         }
-        // Check if email is already verified
-        if (user.isEmailVerified) {
-            res.status(400).json({
-                success: false,
-                message: 'Email is already verified',
-            });
-            return;
-        }
-        // Find the OTP verification record
+        // Find the OTP record
         const otpRecord = yield OtpVerification_1.default.findOne({
-            user: user._id,
+            otp,
             type: 'email',
         });
         if (!otpRecord) {
             res.status(400).json({
                 success: false,
-                message: 'OTP not found. Please request a new OTP',
+                message: 'Invalid OTP',
             });
             return;
         }
         // Check if OTP is expired
         if (otpRecord.expiresAt < new Date()) {
+            yield OtpVerification_1.default.deleteOne({ _id: otpRecord._id });
             res.status(400).json({
                 success: false,
-                message: 'OTP has expired. Please request a new OTP',
+                message: 'OTP has expired, please request a new one',
             });
             return;
         }
-        // Check if OTP matches
-        if (otpRecord.otp !== otp) {
-            res.status(400).json({
+        // Find the user associated with this OTP
+        const user = yield User_1.default.findById(otpRecord.user);
+        if (!user) {
+            res.status(404).json({
                 success: false,
-                message: 'Invalid OTP. Please try again',
+                message: 'User not found',
             });
             return;
         }
-        // Mark user's email as verified
-        yield User_1.default.findByIdAndUpdate(user._id, {
-            isEmailVerified: true,
-        });
-        // Delete the OTP record
-        yield OtpVerification_1.default.findByIdAndDelete(otpRecord._id);
+        user.isEmailVerified = true;
+        yield user.save();
+        // Delete used OTP
+        yield OtpVerification_1.default.deleteOne({ _id: otpRecord._id });
+        // Generate new token using our local function instead of importing
+        const token = generateToken(user);
+        // Set the token in a cookie
+        const cookieOptions = {
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: (process.env.NODE_ENV === 'production' ? 'strict' : 'lax'),
+            path: '/',
+        };
+        res.cookie('token', token, cookieOptions);
         res.status(200).json({
             success: true,
             message: 'Email verified successfully',
         });
     }
     catch (error) {
-        console.error('Verify email with OTP error:', error);
+        console.error('Error verifying email:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to verify email',
+            message: 'Error verifying email',
             error: error.message,
         });
     }

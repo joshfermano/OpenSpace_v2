@@ -2,8 +2,13 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking';
 import Room from '../models/Room';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import Earning from '../models/Earnings';
+
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 export const getAllBookings = async (
   req: Request,
@@ -150,7 +155,7 @@ export const deleteBooking = async (
 };
 
 export const createBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -244,7 +249,7 @@ export const createBooking = async (
 };
 
 export const processPayment = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -526,7 +531,7 @@ const createEarningRecord = async (booking: any): Promise<any> => {
 
 // Cancel booking
 export const cancelBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -649,7 +654,7 @@ export const cancelBooking = async (
 
 // Get booking by ID
 export const getBookingById = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -697,7 +702,7 @@ export const getBookingById = async (
 
 // Get user bookings
 export const getUserBookings = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -741,7 +746,7 @@ export const getUserBookings = async (
 
 // Get host bookings
 export const getHostBookings = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -795,7 +800,7 @@ export const getHostBookings = async (
 
 // Check if user can review a room
 export const canReviewRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -843,7 +848,7 @@ export const canReviewRoom = async (
 };
 
 export const confirmBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -898,7 +903,7 @@ export const confirmBooking = async (
 };
 
 export const completeBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -972,7 +977,7 @@ export const completeBooking = async (
 };
 
 export const rejectBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -1037,7 +1042,7 @@ export const rejectBooking = async (
 };
 
 export const markPaymentReceived = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -1106,7 +1111,7 @@ export const markPaymentReceived = async (
 };
 
 export const canCancelBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -1197,7 +1202,7 @@ export const canCancelBooking = async (
 };
 
 export const sendReceiptEmail = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

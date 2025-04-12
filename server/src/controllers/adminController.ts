@@ -4,8 +4,13 @@ import mongoose from 'mongoose';
 import Room from '../models/Room';
 import Booking from '../models/Booking';
 
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
+
 // Helper function to ensure admin authentication
-function ensureAdmin(req: Request, res: Response): IUser | null {
+function ensureAdmin(req: AuthRequest, res: Response): IUser | null {
   if (!req.user) {
     res.status(401).json({
       success: false,
@@ -22,7 +27,7 @@ function ensureAdmin(req: Request, res: Response): IUser | null {
     return null;
   }
 
-  return req.user as IUser;
+  return req.user;
 }
 
 interface SafeUserResponse {
@@ -37,7 +42,7 @@ interface IUserWithBan extends IUser {
 
 // Get dashboard summary stats
 export const getDashboardSummary = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -87,7 +92,7 @@ export const getDashboardSummary = async (
 
 // Get all users (admin only)
 export const getAllUsers = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -141,7 +146,7 @@ export const getAllUsers = async (
 
 // Get user by ID (admin view)
 export const getUserById = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -185,7 +190,7 @@ export const getUserById = async (
 
 // Update user by ID (admin only)
 export const updateUserById = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -260,7 +265,7 @@ export const updateUserById = async (
 
 // Get pending ID verifications
 export const getPendingIdVerifications = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -287,7 +292,7 @@ export const getPendingIdVerifications = async (
 
 // Verify user ID document
 export const verifyUserIdDocument = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -358,7 +363,7 @@ export const verifyUserIdDocument = async (
 
 // Create admin user
 export const createAdmin = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -413,7 +418,10 @@ export const createAdmin = async (
 };
 
 // Ban user
-export const banUser = async (req: Request, res: Response): Promise<void> => {
+export const banUser = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const admin = ensureAdmin(req, res);
     if (!admin) return;
@@ -465,7 +473,10 @@ export const banUser = async (req: Request, res: Response): Promise<void> => {
 };
 
 // Unban user
-export const unbanUser = async (req: Request, res: Response): Promise<void> => {
+export const unbanUser = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const admin = ensureAdmin(req, res);
     if (!admin) return;
@@ -509,7 +520,7 @@ export const unbanUser = async (req: Request, res: Response): Promise<void> => {
 
 // Delete user
 export const deleteUser = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -560,7 +571,7 @@ export const deleteUser = async (
 
 // Check if admin exists (for initial setup)
 export const checkAdminExists = async (
-  _req: Request,
+  _req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -581,7 +592,7 @@ export const checkAdminExists = async (
 
 // Initial admin setup (first admin account)
 export const initialAdminSetup = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -639,7 +650,7 @@ export const initialAdminSetup = async (
 
 // Get pending room approvals
 export const getPendingRoomApprovals = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -678,7 +689,7 @@ export const getPendingRoomApprovals = async (
 
 // Approve or reject room
 export const approveRejectRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -728,7 +739,7 @@ export const approveRejectRoom = async (
 
 // Get all bookings (admin view)
 export const getAllBookings = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -772,7 +783,7 @@ export const getAllBookings = async (
 
 // Update booking status (admin only)
 export const updateBookingStatus = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -822,7 +833,7 @@ export const updateBookingStatus = async (
 
 // Delete booking (admin only)
 export const deleteBooking = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

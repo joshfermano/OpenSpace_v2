@@ -1,13 +1,18 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Earning from '../models/Earnings';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import Booking from '../models/Booking';
 import { v4 as uuidv4 } from 'uuid';
 
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
+
 // Get host earnings
 export const getHostEarnings = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -68,7 +73,7 @@ export const getHostEarnings = async (
 
 // Get earnings summary
 export const getEarningsSummary = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -179,7 +184,7 @@ export const getEarningsSummary = async (
 
 // Mark booking as completed and convert pending earnings to available
 export const markBookingCompleted = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -290,7 +295,7 @@ export const markBookingCompleted = async (
 
 // Process withdrawal request
 export const processWithdrawal = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -528,7 +533,7 @@ export const processWithdrawal = async (
 
 // Get withdrawal history
 export const getWithdrawalHistory = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -619,7 +624,7 @@ export const getWithdrawalHistory = async (
 
 // Get earnings by date range
 export const getEarningsByDateRange = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -711,7 +716,7 @@ export const getEarningsByDateRange = async (
 
 // Generate earnings statement (for tax purposes)
 export const generateEarningsStatement = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -819,7 +824,7 @@ export const generateEarningsStatement = async (
 
 // Get earnings for a specific booking
 export const getBookingEarnings = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -891,15 +896,14 @@ export const getBookingEarnings = async (
 
 // For admin: Process host payout
 export const processHostPayout = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
-    // Only admin can process payouts
     if (req.user.role !== 'admin') {
       res.status(403).json({
         success: false,
-        message: 'Not authorized to process payouts',
+        message: 'Only admins can process host payouts',
       });
       return;
     }
@@ -968,15 +972,14 @@ export const processHostPayout = async (
 
 // Update pending earnings to available (scheduled job)
 export const updateEarningsStatus = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
-    // Only admins or system can run this
     if (req.user.role !== 'admin') {
       res.status(403).json({
         success: false,
-        message: 'Not authorized to update earnings status',
+        message: 'Only admins can update earnings status',
       });
       return;
     }

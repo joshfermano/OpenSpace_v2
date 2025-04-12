@@ -114,7 +114,24 @@ const userSchema = new mongoose_1.Schema({
         default: false,
     },
     identificationDocument: {
-        idType: { type: String },
+        idType: {
+            type: String,
+            enum: [
+                'Philippine National ID',
+                'ePhilID',
+                'Passport',
+                'LTO Drivers License',
+                'SSS Card',
+                'GSIS Card',
+                'UMID Card',
+                'PRC ID',
+                'COMELEC Voters ID',
+                'Senior Citizen ID',
+                'PhilHealth ID',
+                'Postal ID',
+                'TIN Card',
+            ],
+        },
         idNumber: { type: String },
         idImage: { type: String },
         uploadDate: { type: Date },
@@ -125,6 +142,12 @@ const userSchema = new mongoose_1.Schema({
         },
         verificationDate: { type: Date },
         rejectionReason: { type: String },
+        businessDocument: {
+            certificateType: { type: String },
+            certificateNumber: { type: String },
+            certificateImage: { type: String },
+            uploadDate: { type: Date },
+        },
     },
     address: {
         street: { type: String },
@@ -145,6 +168,44 @@ const userSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
+userSchema.statics.getUserVerificationCounts = function () {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            console.log('Calculating user verification counts...');
+            const total = yield this.countDocuments({});
+            console.log(`Total users: ${total}`);
+            // Get verified users (users with verificationLevel of 'verified' or 'admin')
+            const verified = yield this.countDocuments({
+                verificationLevel: { $in: ['verified', 'admin'] },
+            });
+            console.log(`Verified users: ${verified}`);
+            // Get banned users
+            const banned = yield this.countDocuments({ active: false });
+            console.log(`Banned users: ${banned}`);
+            // Calculate unverified users (excluding banned users)
+            const activeUnverified = yield this.countDocuments({
+                verificationLevel: 'basic',
+                active: true,
+            });
+            console.log(`Active unverified users: ${activeUnverified}`);
+            return {
+                total,
+                verified,
+                unverified: activeUnverified,
+                banned,
+            };
+        }
+        catch (error) {
+            console.error('Error in getUserVerificationCounts:', error);
+            return {
+                total: 0,
+                verified: 0,
+                unverified: 0,
+                banned: 0,
+            };
+        }
+    });
+};
 userSchema.methods.comparePassword = function (candidatePassword) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -155,7 +216,6 @@ userSchema.methods.comparePassword = function (candidatePassword) {
         }
     });
 };
-// Pre-save hook to hash password
 userSchema.pre('save', function (next) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!this.isModified('password'))
@@ -170,7 +230,6 @@ userSchema.pre('save', function (next) {
         }
     });
 });
-// Method to compare password
 userSchema.methods.comparePassword = function (candidatePassword) {
     return __awaiter(this, void 0, void 0, function* () {
         return bcrypt_1.default.compare(candidatePassword, this.password);

@@ -58,6 +58,14 @@ const bookingSchema = new mongoose_1.Schema({
         type: Date,
         required: [true, 'Check-out date is required'],
     },
+    checkInTime: {
+        type: String,
+        default: '14:00',
+    },
+    checkOutTime: {
+        type: String,
+        default: '12:00',
+    },
     guests: {
         adults: {
             type: Number,
@@ -107,7 +115,7 @@ const bookingSchema = new mongoose_1.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['property', 'creditCard'],
+        enum: ['property', 'card', 'gcash', 'maya'],
         default: 'property',
     },
     paymentId: {

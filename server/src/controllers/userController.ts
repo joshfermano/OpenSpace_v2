@@ -7,8 +7,13 @@ import { IUser } from '../models/User';
 import { uploadImage } from '../services/imageService';
 import { deleteImage } from '../services/imageService';
 
+// Define a custom Request type that includes the user property
+interface AuthRequest extends Request {
+  user?: IUser;
+}
+
 // Helper function to safely access req.user
-function getUserFromRequest(req: Request, res: Response): IUser | null {
+function getUserFromRequest(req: AuthRequest, res: Response): IUser | null {
   if (!req.user) {
     res.status(401).json({
       success: false,
@@ -18,7 +23,7 @@ function getUserFromRequest(req: Request, res: Response): IUser | null {
   }
 
   // Handle both possible structures
-  const user = req.user as any;
+  const user = req.user;
   if (!user._id && !user.id) {
     res.status(401).json({
       success: false,
@@ -27,7 +32,7 @@ function getUserFromRequest(req: Request, res: Response): IUser | null {
     return null;
   }
 
-  return req.user as IUser;
+  return req.user;
 }
 
 interface SafeUserResponse {
@@ -46,7 +51,7 @@ export interface HostInfo {
 
 // Get user by ID
 export const getUserById = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -108,7 +113,7 @@ export const getUserById = async (
 };
 
 export const updateProfile = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -172,7 +177,7 @@ export const updateProfile = async (
 
 // Change password
 export const changePassword = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -225,7 +230,10 @@ export const changePassword = async (
 };
 
 // Save a room to favorites
-export const saveRoom = async (req: Request, res: Response): Promise<void> => {
+export const saveRoom = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
   try {
     const userId = req.user.id;
     const { roomId } = req.body;
@@ -278,7 +286,7 @@ export const saveRoom = async (req: Request, res: Response): Promise<void> => {
 
 // Remove a room from favorites
 export const unsaveRoom = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -321,7 +329,7 @@ export const unsaveRoom = async (
 
 // Get saved rooms
 export const getSavedRooms = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -359,7 +367,7 @@ export const getSavedRooms = async (
 
 // Get user dashboard data
 export const getDashboardData = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -510,7 +518,7 @@ export const markNotificationAsRead = async (
 };
 
 export const uploadProfileImage = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -571,7 +579,7 @@ export const uploadProfileImage = async (
 };
 
 export const getUserProfile = async (
-  req: Request,
+  req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

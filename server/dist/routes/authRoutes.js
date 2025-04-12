@@ -50,17 +50,19 @@ router.get('/logout', authController.logout);
 router.post('/forgot-password', authController.requestPasswordReset);
 router.post('/reset-password', authController.resetPassword);
 router.get('/validate-reset-token/:token', authController.validateResetToken);
-// Email verification public routes
-router.post('/email-verification/send', emailVerificationController.sendEmailVerificationOTP);
+// Email verification - PUBLIC routes (no authentication required)
+// Use these endpoints for initial verification
 router.post('/email-verification/verify', emailVerificationController.verifyEmailWithOTP);
+router.post('/email-verification/send', emailVerificationController.sendEmailVerificationOTP);
 router.post('/email-verification/resend', emailVerificationController.resendEmailVerification);
 // ===== Protected routes (require authentication) =====
 router.use(authMiddleware_1.protect); // Apply authentication middleware to all routes below
 // User profile
 router.get('/me', authController.getCurrentUser);
+// Password update (for authenticated users)
+router.post('/update-password', authController.updatePassword);
+// Protected email verification routes (for already authenticated users)
 router.post('/email-verification/initiate', authController.initiateEmailVerification);
-router.post('/email-verification/resend', authController.resendEmailVerification);
-router.post('/email-verification/verify', authController.verifyEmailWithOTP);
 // Phone verification
 router.post('/phone-verification/initiate', authController.initiatePhoneVerification);
 router.post('/phone-verification/verify', authController.verifyPhoneWithOTP);
@@ -68,14 +70,4 @@ router.post('/phone-verification/verify', authController.verifyPhoneWithOTP);
 router.post('/id-verification/upload', authController.uploadIdVerification);
 // Host functionality
 router.post('/become-host', authController.becomeHost);
-// ===== Admin routes =====
-// All routes below will require admin role
-router.use('/admin', authMiddleware_1.adminOnly);
-// Admin user management
-router.post('/admin/create', authController.createAdmin);
-router.get('/admin/id-verifications', authController.getPendingIdVerifications);
-router.patch('/admin/id-verification/:userId', authController.verifyUserIdDocument);
-router.patch('/admin/ban/:userId', authController.banUser);
-router.patch('/admin/unban/:userId', authController.unbanUser);
-router.delete('/admin/user/:userId', authController.deleteUser);
 exports.default = router;
