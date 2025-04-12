@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import express from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import User, { IUser } from '../models/User';
 import OtpVerification from '../models/OtpVerification';
@@ -6,6 +6,10 @@ import {
   sendOtpVerificationEmail,
   sendTestEmail,
 } from '../services/emailService';
+
+// Use Express namespace types instead of importing directly
+type Request = express.Request;
+type Response = express.Response;
 
 // Define a custom Request type that includes the user property
 interface AuthRequest extends Request {

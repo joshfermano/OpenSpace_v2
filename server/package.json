@@ -5,7 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "npx ts-node --transpile-only -P tsconfig.dev.json src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only -P tsconfig.dev.json src/server.ts",
+    "Dev": "npx ts-node --transpile-only -P tsconfig.dev.json src/server.ts",
     "build": "tsc -p tsconfig.deploy.json",
     "preinstall": "node src/scripts/install-types.js",
     "prebuild": "npm run preinstall",
@@ -45,7 +46,6 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.14.1",
     "@types/uuid": "^10.0.0",
-    "nodemon": "^3.1.9",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",

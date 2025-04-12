@@ -58,7 +58,7 @@ const fileFilter = (_req, file, cb) => {
         cb(null, true);
     }
     else {
-        cb(new Error('Not an image! Please upload only images.'), false);
+        cb(null, false); // Just reject without error
     }
 };
 const upload = (0, multer_1.default)({

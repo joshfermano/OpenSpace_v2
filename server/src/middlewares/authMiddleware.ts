@@ -16,7 +16,7 @@ interface AuthRequest extends Request {
 // Note: The type declaration has been moved to the types/express.d.ts file
 
 export const protect = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
