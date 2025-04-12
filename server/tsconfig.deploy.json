@@ -17,8 +17,8 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node"]
+    "types": ["node", "express"]
   },
-  "include": ["./src/**/*.ts", "./src/types/*.d.ts"],
+  "include": ["./src/**/*.ts", "./src/types/**/*.d.ts"],
   "exclude": ["node_modules"]
 }

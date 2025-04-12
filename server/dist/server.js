@@ -33,9 +33,6 @@ const adminEarningsRoutes_1 = __importDefault(require("./routes/adminEarningsRou
 // Create Express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
-// Correctly serve static files from both src/uploads and public/uploads
-app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, 'uploads')));
-app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../public/uploads')));
 // CORS configuration
 const allowedOrigins = [
     'http://localhost:5173',
