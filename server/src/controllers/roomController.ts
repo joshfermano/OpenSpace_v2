@@ -2,13 +2,15 @@ import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
 import Room from '../models/Room';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import Booking from '../models/Booking';
 import { uploadImage } from '../services/imageService';
 import { deleteImage } from '../services/imageService';
 
 // Define a custom Request type that includes the user property
-type AuthRequest = Request;
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 // Create a new room listing
 export const createRoom = async (

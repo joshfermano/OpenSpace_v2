@@ -1,12 +1,14 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Earning from '../models/Earnings';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import Booking from '../models/Booking';
 import { v4 as uuidv4 } from 'uuid';
 
 // Define a custom Request type that includes the user property
-type AuthRequest = Request;
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 // Get host earnings
 export const getHostEarnings = async (

@@ -2,10 +2,12 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Earning from '../models/Earnings';
 import Booking from '../models/Booking';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 
 // Define a custom Request type that includes the user property
-type AuthRequest = Request;
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 interface IPopulatedHost {
   _id: mongoose.Types.ObjectId;

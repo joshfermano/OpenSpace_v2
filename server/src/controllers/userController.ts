@@ -8,7 +8,9 @@ import { uploadImage } from '../services/imageService';
 import { deleteImage } from '../services/imageService';
 
 // Define a custom Request type that includes the user property
-type AuthRequest = Request;
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 // Helper function to safely access req.user
 function getUserFromRequest(req: AuthRequest, res: Response): IUser | null {

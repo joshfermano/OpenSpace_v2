@@ -8,7 +8,9 @@ import {
 } from '../services/emailService';
 
 // Define a custom Request type that includes the user property
-type AuthRequest = Request;
+interface AuthRequest extends Request {
+  user?: IUser;
+}
 
 const generateToken = (user: IUser): string => {
   const secret = process.env.JWT_SECRET;
