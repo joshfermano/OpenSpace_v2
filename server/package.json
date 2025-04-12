@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only -P tsconfig.dev.json src/server.ts",
     "Dev": "npx ts-node --transpile-only -P tsconfig.dev.json src/server.ts",
-    "build": "tsc",
+    "build": "tsc && npm install --save-dev types@/express && npm install --save-dev types@/node && npm install --save-dev types@/uuid && npm install --save-dev types@/jsonwebtoken && npm install --save-dev types@/cookie-parser && npm install --save-dev types@/cors && npm install --save-dev types@/multer",
     "preinstall": "node src/scripts/install-types.js || echo 'Type installation failed, continuing'",
     "prebuild": "echo 'Skipping preinstall during build'",
     "watch": "tsc -w",
@@ -51,6 +51,7 @@
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "ts2js": "^4.1.0-dev.5",
+    "types": "file:../../../multer",
     "typescript": "^5.8.3"
   }
 }
