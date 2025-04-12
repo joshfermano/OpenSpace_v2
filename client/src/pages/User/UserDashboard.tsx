@@ -92,22 +92,28 @@ const UserDashboard = () => {
 
         // Fetch user bookings
         const bookingsResponse = await bookingApi.getUserBookings();
-        if (bookingsResponse.success && bookingsResponse.data) {
+        console.log('Bookings response:', bookingsResponse);
+
+        if (bookingsResponse.success && Array.isArray(bookingsResponse.data)) {
           // Map the API response to match our Booking interface
-          const formattedBookings = bookingsResponse.data.map(
-            (booking: any) => ({
-              id: booking._id,
-              roomId: booking.room._id,
-              startDate: booking.checkIn,
-              endDate: booking.checkOut,
+          const formattedBookings = bookingsResponse.data
+            .filter((booking: any) => booking && booking.room) // Filter out null bookings or bookings without room
+            .map((booking: any) => ({
+              id: booking._id || '',
+              roomId: booking.room?._id || '',
+              startDate: booking.checkIn || new Date().toISOString(),
+              endDate: booking.checkOut || new Date().toISOString(),
               checkInTime: booking.checkInTime || '2:00 PM',
               checkOutTime: booking.checkOutTime || '12:00 PM',
-              totalPrice: booking.totalPrice,
-              paymentStatus: booking.paymentStatus,
-              status: booking.bookingStatus,
-            })
-          );
+              totalPrice: booking.totalPrice || 0,
+              paymentStatus: booking.paymentStatus || 'unpaid',
+              status: booking.bookingStatus || 'pending',
+            }));
+          console.log('Formatted bookings:', formattedBookings);
           setBookings(formattedBookings);
+        } else {
+          console.warn('No bookings data or invalid format:', bookingsResponse);
+          setBookings([]);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -118,6 +124,7 @@ const UserDashboard = () => {
             dateJoined: user.createdAt || new Date().toISOString(),
           });
         }
+        setBookings([]);
       } finally {
         setLoading(false);
       }
