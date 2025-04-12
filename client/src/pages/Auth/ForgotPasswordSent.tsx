@@ -8,7 +8,7 @@ const ForgotPasswordSent = () => {
   const navigate = useNavigate();
 
   const [isValidating, setIsValidating] = useState(true);
-  const [isValid, setIsValid] = useState(false);
+  const [, setIsValid] = useState(false);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
 

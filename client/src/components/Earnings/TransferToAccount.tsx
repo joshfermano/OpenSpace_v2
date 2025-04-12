@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FiCreditCard, FiCheckCircle, FiLoader } from 'react-icons/fi';
-import { BsCashCoin } from 'react-icons/bs';
 import { FaMobileAlt } from 'react-icons/fa';
 
 interface TransferToAccountProps {

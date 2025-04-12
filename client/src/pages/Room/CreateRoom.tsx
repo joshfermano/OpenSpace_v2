@@ -72,21 +72,21 @@ const convertTo12Hour = (time24: string): string => {
 };
 
 // Helper function to convert 12h format string to 24h format
-const convertTo24Hour = (time12: string): string => {
-  if (!time12) return '';
+// const convertTo24Hour = (time12: string): string => {
+//   if (!time12) return '';
 
-  const [timePart, modifier] = time12.split(' ');
-  let [hours, minutes] = timePart.split(':');
-  let hour = parseInt(hours, 10);
+//   const [timePart, modifier] = time12.split(' ');
+//   let [hours, minutes] = timePart.split(':');
+//   let hour = parseInt(hours, 10);
 
-  if (modifier === 'PM' && hour < 12) {
-    hour += 12;
-  } else if (modifier === 'AM' && hour === 12) {
-    hour = 0;
-  }
+//   if (modifier === 'PM' && hour < 12) {
+//     hour += 12;
+//   } else if (modifier === 'AM' && hour === 12) {
+//     hour = 0;
+//   }
 
-  return `${hour.toString().padStart(2, '0')}:${minutes}`;
-};
+//   return `${hour.toString().padStart(2, '0')}:${minutes}`;
+// };
 
 const CreateRoom = () => {
   const navigate = useNavigate();
@@ -632,18 +632,18 @@ const CreateRoom = () => {
   };
 
   // Get room type label based on the selected type
-  const getRoomTypeLabel = () => {
-    switch (formData.type) {
-      case 'stay':
-        return 'Room Stay';
-      case 'conference':
-        return 'Conference Room';
-      case 'event':
-        return 'Events Place';
-      default:
-        return '';
-    }
-  };
+  // const getRoomTypeLabel = () => {
+  //   switch (formData.type) {
+  //     case 'stay':
+  //       return 'Room Stay';
+  //     case 'conference':
+  //       return 'Conference Room';
+  //     case 'event':
+  //       return 'Events Place';
+  //     default:
+  //       return '';
+  //   }
+  // };
 
   // Check if room is a stay type (to handle fixed check-in/out times)
   const isRoomStay = formData.type === 'stay';

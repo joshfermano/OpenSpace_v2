@@ -364,7 +364,7 @@ const ReviewCard = ({
 };
 
 // Main ReviewArea Component
-const ReviewArea = ({ roomId, userHasBooking = false }: ReviewAreaProps) => {
+const ReviewArea = ({ roomId }: ReviewAreaProps) => {
   const { user, isAuthenticated } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);

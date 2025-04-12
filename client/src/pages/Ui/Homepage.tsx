@@ -13,11 +13,11 @@ const categoryToType: Record<string, string> = {
 };
 
 // Reverse mapping for displaying
-const typeToCategory: Record<string, string> = {
-  stay: 'Room Stay',
-  conference: 'Conference Room',
-  event: 'Events Place',
-};
+// const typeToCategory: Record<string, string> = {
+//   stay: 'Room Stay',
+//   conference: 'Conference Room',
+//   event: 'Events Place',
+// };
 
 const Homepage = () => {
   const [search, setSearch] = useState('');

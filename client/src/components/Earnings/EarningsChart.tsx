@@ -190,7 +190,7 @@ const EarningsChart: React.FC<EarningsChartProps> = ({
             ticks: {
               color: textColor,
               font: {
-                weight: '600',
+                weight: 600,
                 size: 12,
                 family: 'system-ui',
               },
@@ -213,7 +213,7 @@ const EarningsChart: React.FC<EarningsChartProps> = ({
             ticks: {
               color: textColor,
               font: {
-                weight: '600',
+                weight: 600,
                 size: 12,
                 family: 'system-ui',
               },

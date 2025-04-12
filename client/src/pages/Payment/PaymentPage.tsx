@@ -27,7 +27,7 @@ const PaymentPage = () => {
     'gcash' | 'maya' | 'card' | 'property'
   >('card');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [bookingCreated, setBookingCreated] = useState<any>(null);
+  const [, setBookingCreated] = useState<any>(null);
   const [formData, setFormData] = useState({
     cardNumber: '',
     cardHolder: '',

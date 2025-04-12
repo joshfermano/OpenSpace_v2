@@ -46,7 +46,7 @@ const ViewBooking = () => {
   const [loading, setLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
   const [cancelDetails, setCancelDetails] = useState<any>(null);
-  const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   useEffect(() => {

@@ -43,9 +43,7 @@ const EditUserProfile = () => {
   const { user, refreshUser } = useAuth();
   const extendedUser = user as ExtendedUser | null;
 
-  const [hostModeEnabled, setHostModeEnabled] = useState(
-    extendedUser?.role === 'host'
-  );
+  const [, setHostModeEnabled] = useState(extendedUser?.role === 'host');
 
   const [message, setMessage] = useState<{
     type: 'success' | 'error';

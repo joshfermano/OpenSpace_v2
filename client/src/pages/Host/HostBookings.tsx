@@ -268,7 +268,7 @@ const HostBookings = () => {
             Sort by:
           </span>
           <select
-            className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm"
+            className="bg-white dark:bg-gray-800 border dark:text-light border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}>
             <option value="newest-booked">Booking Date: Newest First</option>

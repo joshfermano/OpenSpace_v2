@@ -62,9 +62,9 @@ const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
     }
   };
 
-  const getReason = () => {
-    return selectedReason === 'Other' ? customReason : selectedReason;
-  };
+  // const getReason = () => {
+  //   return selectedReason === 'Other' ? customReason : selectedReason;
+  // };
 
   const isFormValid =
     selectedReason &&

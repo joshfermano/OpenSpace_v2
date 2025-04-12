@@ -55,17 +55,24 @@ const ReceiptModal = ({ booking, onClose }: ReceiptModalProps) => {
       ? '5:00 PM'
       : '10:00 PM';
 
+    // Fix for location property - treat it as any to bypass TypeScript error
+    // or use optional chaining to safely access potentially undefined properties
+    const roomLocation = (booking.room as any).location;
+    const locationString = roomLocation
+      ? `${roomLocation.city || ''}, ${roomLocation.country || ''}`
+      : 'Location not available';
+
     return {
       referenceNumber: booking._id,
       bookingDetails: {
         roomName: booking.room.title,
-        location: `${booking.room.location.city}, ${booking.room.location.country}`,
+        location: locationString,
         checkInDate: formatDate(booking.checkIn),
         checkOutDate: formatDate(booking.checkOut),
         checkInTime: formattedCheckInTime,
         checkOutTime: formattedCheckOutTime,
         guest: `${booking.user.firstName} ${booking.user.lastName}`,
-        guestCount: booking.guests.adults + booking.guests.children,
+        guestCount: booking.guests.adults + (booking.guests.children || 0),
         duration: calculateDuration(booking),
         numberOfDays: numberOfDays,
         subtotal: booking.totalPrice * 0.9,
@@ -73,9 +80,7 @@ const ReceiptModal = ({ booking, onClose }: ReceiptModalProps) => {
         total: booking.totalPrice,
       },
       paymentMethod:
-        booking.paymentMethod === 'creditCard'
-          ? 'Credit Card'
-          : 'Pay at Property',
+        booking.paymentMethod === 'card' ? 'Credit Card' : 'Pay at Property',
       paymentStatus: booking.paymentStatus,
       date: new Date(booking.createdAt).toLocaleDateString(),
       time: new Date(booking.createdAt).toLocaleTimeString(),

@@ -4,7 +4,7 @@ import Footer from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
 
 const MainLayout = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isLoading } = useAuth();
 
   if (isLoading) {
     return <div>Loading...</div>;
