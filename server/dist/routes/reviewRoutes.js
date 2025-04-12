@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const reviewController = __importStar(require("../controllers/reviewController"));
 const authMiddleware_1 = require("../middlewares/authMiddleware");
-const multer_1 = __importDefault(require("../config/multer"));
+const multer_1 = require("../config/multer");
 const router = express_1.default.Router();
 // Public routes
 router.get('/room/:roomId', reviewController.getRoomReviews);
@@ -48,13 +48,13 @@ router.use(authMiddleware_1.protect);
 // Check if user can review a room
 router.get('/eligibility/:roomId', reviewController.checkReviewEligibility);
 // Create review (needs roomId)
-router.post('/room/:roomId', multer_1.default.array('photos', 3), reviewController.createReview);
+router.post('/room/:roomId', multer_1.reviewUpload.array('photos', 3), reviewController.createReview);
 // User's reviews
 router.get('/user', reviewController.getUserReviews);
 // Host reviews
 router.get('/host', reviewController.getHostReviews);
 // Single review operations
 router.get('/:reviewId', reviewController.getReviewById);
-router.put('/:reviewId', multer_1.default.array('photos', 3), reviewController.updateReview);
+router.put('/:reviewId', multer_1.reviewUpload.array('photos', 3), reviewController.updateReview);
 router.delete('/:reviewId', reviewController.deleteReview);
 exports.default = router;

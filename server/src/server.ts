@@ -30,7 +30,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://openspace-client.vercel.app',
+  'https://openspace-reserve.vercel.app',
   process.env.CLIENT_URL,
 ].filter(Boolean);
 

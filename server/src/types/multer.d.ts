@@ -18,4 +18,16 @@ declare global {
   }
 }
 
+declare module 'multer' {
+  namespace multer {
+    interface FileFilterCallback {
+      (error: Error | null, acceptFile: boolean): void;
+    }
+  }
+
+  interface FileFilterCallback {
+    (error: Error | null, acceptFile: boolean): void;
+  }
+}
+
 export {};

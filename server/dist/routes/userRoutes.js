@@ -75,7 +75,7 @@ const fileFilter = (_req, file, cb) => {
         cb(null, true);
     }
     else {
-        cb(new Error('Not an image! Please upload only images.'));
+        cb(new Error('Not an image! Please upload only images.'), false);
     }
 };
 const upload = (0, multer_1.default)({

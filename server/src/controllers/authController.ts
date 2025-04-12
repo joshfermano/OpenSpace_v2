@@ -20,6 +20,9 @@ const generateOTP = (): string => {
 interface CustomCookieOptions extends CookieOptions {
   sameSite: 'strict' | 'lax' | 'none' | boolean;
   expires: Date;
+  httpOnly: boolean;
+  secure: boolean;
+  path: string;
 }
 
 function ensureAuthenticated(req: AuthRequest, res: Response): IUser | null {
