@@ -34,6 +34,7 @@ declare global {
     interface Request {
       user?: IUser;
     }
+  }
 }
 
 // Re-export express module to make it accessible
