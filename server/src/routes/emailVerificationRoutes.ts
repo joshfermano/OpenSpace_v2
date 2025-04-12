@@ -13,6 +13,8 @@ const router: Router = express.Router();
 router.post('/test-email', testEmailDelivery);
 
 // Protected routes (require authentication)
+router.use(protect);
+
 router.post('/send-otp', protect, sendEmailVerificationOTP);
 router.post('/verify-otp', protect, verifyEmailWithOTP);
 router.post('/resend-otp', protect, resendEmailVerification);

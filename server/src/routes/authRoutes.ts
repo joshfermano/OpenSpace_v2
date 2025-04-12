@@ -1,9 +1,9 @@
-import express from 'express';
+import { Router } from 'express';
 import * as authController from '../controllers/authController';
 import * as emailVerificationController from '../controllers/emailVerificationController';
 import { protect } from '../middlewares/authMiddleware';
 
-const router = express.Router();
+const router = Router();
 
 // ===== Public routes =====
 // Authentication

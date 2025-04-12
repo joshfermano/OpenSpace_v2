@@ -1,19 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User, { IUser } from '../models/User';
+import User from '../models/User';
 
 interface JwtPayload {
   userId: string;
   email: string;
   role: string;
 }
-
-// Define a custom Request type that includes the user property
-interface AuthRequest extends Request {
-  user?: IUser;
-}
-
-// Note: The type declaration has been moved to the types/express.d.ts file
 
 export const protect = async (
   req: Request,
@@ -91,7 +84,7 @@ export const protect = async (
 };
 
 export const adminOnly = (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): void => {
