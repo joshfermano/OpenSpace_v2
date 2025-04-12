@@ -23,7 +23,9 @@ exec('tsc -p tsconfig.deploy.json', (error, stdout, stderr) => {
   fs.writeFileSync(tsconfigPath, originalConfig);
 
   if (error) {
-    console.error(`Build error: ${error}`);
+    console.error(`Build error: ${error.message}`);
+    console.error('Standard output:', stdout);
+    console.error('Standard error:', stderr);
     return;
   }
 

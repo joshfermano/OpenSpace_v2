@@ -12,8 +12,7 @@
     "postinstall": "npm rebuild bcrypt --build-from-source || echo 'bcrypt rebuild failed, continuing'",
     "prebuild": "echo 'Skipping preinstall during build'",
     "watch": "tsc -w",
-    "render-build": "npm install && node src/scripts/debug-environment.js && npm rebuild bcrypt --build-from-source && npm install --save-dev typescript @types/express @types/node @types/uuid @types/jsonwebtoken @types/cookie-parser @types/cors @types/multer && node src/scripts/copy-express-types.js && node src/scripts/remove-express-file.js && node build-without-types.js",
-    "deploy-build": "npm install && npx tsc --project tsconfig.deploy.json",
+    "render-build": "npm install && node src/scripts/debug-environment.js && npm uninstall bcrypt && npm install bcryptjs && npm install --save-dev @types/bcryptjs typescript @types/express @types/node @types/uuid @types/jsonwebtoken @types/cookie-parser @types/cors @types/multer glob && node src/scripts/replace-bcrypt.js && node src/scripts/copy-express-types.js && node src/scripts/remove-express-file.js && (node build-without-types.js || node src/scripts/build-desperate.js)",
     "prod-build": "npm install && npm run build && npm prune --production",
     "fix-build": "rimraf dist && npm install --save-dev @types/express && npm install && npx tsc --project tsconfig.deploy.json"
   },
@@ -47,6 +46,7 @@
     "@types/node": "^22.14.1",
     "@types/uuid": "^10.0.0",
     "cross-env": "^7.0.3",
+    "glob": "^11.0.1",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
