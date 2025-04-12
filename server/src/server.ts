@@ -70,7 +70,7 @@ app.use('/api/admin/earnings', adminEarningsRoutes);
 
 // Health check route
 app.get('/api/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is running' });
+  res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
 const createUploadDirs = async () => {
