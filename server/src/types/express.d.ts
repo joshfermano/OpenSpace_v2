@@ -8,4 +8,6 @@ declare global {
   }
 }
 
-export {};
+// Re-export express module to make it accessible
+import * as express from 'express';
+export = express;

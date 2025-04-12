@@ -14,15 +14,16 @@ if (!fs.existsSync(targetDir)) {
 const fixPath = path.join(targetDir, 'express-fix.d.ts');
 const fixContent = `import { IUser } from '../models/User';
 
-// Re-export everything from express, then add our customizations
+// Re-export everything from express
+import * as express from 'express';
+export = express;
+
+// Add our customizations
 declare module 'express' {
   interface Request {
     user?: IUser;
   }
-}
-
-// This ensures the module is treated as a module declaration
-export {};`;
+}`;
 
 // Also update the standard express.d.ts
 const expressPath = path.join(targetDir, 'express.d.ts');
@@ -33,10 +34,11 @@ declare global {
     interface Request {
       user?: IUser;
     }
-  }
 }
 
-export {};`;
+// Re-export express module to make it accessible
+import * as express from 'express';
+export = express;`;
 
 try {
   // Write both files

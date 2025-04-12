@@ -1,11 +1,12 @@
 import { IUser } from '../models/User';
 
-// Re-export everything from express, then add our customizations
+// Re-export everything from express
+import * as express from 'express';
+export = express;
+
+// Add our customizations
 declare module 'express' {
   interface Request {
     user?: IUser;
   }
 }
-
-// This ensures the module is treated as a module declaration
-export {};
