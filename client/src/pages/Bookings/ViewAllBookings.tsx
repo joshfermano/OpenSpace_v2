@@ -9,7 +9,6 @@ import {
   FiArrowUp,
   FiArrowDown,
   FiClock,
-  FiCheck,
 } from 'react-icons/fi';
 import { GoSortAsc } from 'react-icons/go';
 import { bookingApi } from '../../services/bookingApi';
@@ -27,7 +26,7 @@ interface Booking {
   totalPrice: number;
   paymentStatus: string;
   status: string;
-  createdAt?: string;
+  createdAt: string; // Ensure this is required, not optional
 }
 
 type StatusFilter =
@@ -38,7 +37,7 @@ type StatusFilter =
   | 'cancelled'
   | 'rejected';
 
-type SortOption = 'newest' | 'oldest';
+type SortOption = 'newest' | 'oldest' | 'newest-booked' | 'oldest-booked';
 
 const ViewAllBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -46,7 +45,7 @@ const ViewAllBookings = () => {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<StatusFilter>('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [sortBy, setSortBy] = useState<SortOption>('newest-booked');
   const [isSortOpen, setIsSortOpen] = useState(false);
 
   useEffect(() => {
@@ -63,8 +62,8 @@ const ViewAllBookings = () => {
             roomImage: booking.room?.images?.[0] || null,
             startDate: booking.checkIn,
             endDate: booking.checkOut,
-            checkInTime: booking.checkInTime || '2:00 PM',
-            checkOutTime: booking.checkOutTime || '12:00 PM',
+            checkInTime: booking.checkInTime || '14:00',
+            checkOutTime: booking.checkOutTime || '12:00',
             totalPrice: booking.totalPrice,
             paymentStatus: booking.paymentStatus,
             status: booking.bookingStatus,
@@ -82,16 +81,13 @@ const ViewAllBookings = () => {
     fetchBookings();
   }, []);
 
-  // Apply filter and sorting when activeFilter or sortBy changes
   useEffect(() => {
     let filtered = [...bookings];
 
-    // First apply status filter
     if (activeFilter !== 'all') {
       filtered = filtered.filter((booking) => booking.status === activeFilter);
     }
 
-    // Then sort the filtered results
     filtered = sortBookings(filtered, sortBy);
 
     setFilteredBookings(filtered);
@@ -102,22 +98,36 @@ const ViewAllBookings = () => {
     sortOption: SortOption
   ): Booking[] => {
     return [...bookingsToSort].sort((a, b) => {
-      const dateA = new Date(a.startDate).getTime();
-      const dateB = new Date(b.startDate).getTime();
-
-      if (sortOption === 'newest') {
-        return dateB - dateA;
-      } else {
-        return dateA - dateB;
+      switch (sortOption) {
+        case 'newest':
+          // Sort by check-in date (newest first)
+          return (
+            new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+          );
+        case 'oldest':
+          // Sort by check-in date (oldest first)
+          return (
+            new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+          );
+        case 'newest-booked':
+          // Sort by booking date (newest first)
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        case 'oldest-booked':
+          // Sort by booking date (oldest first)
+          return (
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+        default:
+          return 0;
       }
     });
   };
 
   const handleFilterChange = (filter: StatusFilter) => {
     setActiveFilter(filter);
-    if (window.innerWidth < 768) {
-      setIsFilterOpen(false); // Close filter dropdown on mobile after selection
-    }
+    setIsFilterOpen(false);
   };
 
   const handleSortChange = (option: SortOption) => {
@@ -131,20 +141,37 @@ const ViewAllBookings = () => {
   };
 
   const renderSortLabel = () => {
-    if (sortBy === 'newest') {
-      return (
-        <>
-          <FiArrowDown className="mr-1" />
-          <span>Newest First</span>
-        </>
-      );
-    } else {
-      return (
-        <>
-          <FiArrowUp className="mr-1" />
-          <span>Oldest First</span>
-        </>
-      );
+    switch (sortBy) {
+      case 'newest':
+        return (
+          <>
+            <FiArrowDown className="mr-1" />
+            <span>Check-in Date: Newest First</span>
+          </>
+        );
+      case 'oldest':
+        return (
+          <>
+            <FiArrowUp className="mr-1" />
+            <span>Check-in Date: Oldest First</span>
+          </>
+        );
+      case 'newest-booked':
+        return (
+          <>
+            <FiArrowDown className="mr-1" />
+            <span>Booking Date: Newest First</span>
+          </>
+        );
+      case 'oldest-booked':
+        return (
+          <>
+            <FiArrowUp className="mr-1" />
+            <span>Booking Date: Oldest First</span>
+          </>
+        );
+      default:
+        return null;
     }
   };
 
@@ -192,7 +219,13 @@ const ViewAllBookings = () => {
               onClick={() => setIsSortOpen(!isSortOpen)}
               className="flex items-center justify-center py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               <GoSortAsc className="mr-2" />
-              {sortBy === 'newest' ? 'Newest' : 'Oldest'}
+              {sortBy === 'newest-booked'
+                ? 'Newest Booked'
+                : sortBy === 'oldest-booked'
+                ? 'Oldest Booked'
+                : sortBy === 'newest'
+                ? 'Newest Check-in'
+                : 'Oldest Check-in'}
             </button>
           </div>
         </div>
@@ -248,7 +281,7 @@ const ViewAllBookings = () => {
             <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-xl p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Sort By Date
+                  Sort By
                 </h3>
                 <button
                   onClick={() => setIsSortOpen(false)}
@@ -259,6 +292,32 @@ const ViewAllBookings = () => {
 
               <div className="space-y-2">
                 <button
+                  onClick={() => handleSortChange('newest-booked')}
+                  className={`w-full flex items-center justify-between py-3 px-4 rounded-lg transition-colors ${
+                    sortBy === 'newest-booked'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
+                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                  <div className="flex items-center">
+                    <FiArrowDown className="mr-2" />
+                    <span>Booking Date: Newest First</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleSortChange('oldest-booked')}
+                  className={`w-full flex items-center justify-between py-3 px-4 rounded-lg transition-colors ${
+                    sortBy === 'oldest-booked'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
+                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                  <div className="flex items-center">
+                    <FiArrowUp className="mr-2" />
+                    <span>Booking Date: Oldest First</span>
+                  </div>
+                </button>
+
+                <button
                   onClick={() => handleSortChange('newest')}
                   className={`w-full flex items-center justify-between py-3 px-4 rounded-lg transition-colors ${
                     sortBy === 'newest'
@@ -267,9 +326,8 @@ const ViewAllBookings = () => {
                   }`}>
                   <div className="flex items-center">
                     <FiArrowDown className="mr-2" />
-                    <span>Newest First</span>
+                    <span>Check-in Date: Newest First</span>
                   </div>
-                  {sortBy === 'newest' && <FiCheck className="text-blue-500" />}
                 </button>
 
                 <button
@@ -281,9 +339,8 @@ const ViewAllBookings = () => {
                   }`}>
                   <div className="flex items-center">
                     <FiArrowUp className="mr-2" />
-                    <span>Oldest First</span>
+                    <span>Check-in Date: Oldest First</span>
                   </div>
-                  {sortBy === 'oldest' && <FiCheck className="text-blue-500" />}
                 </button>
               </div>
             </div>
@@ -334,7 +391,31 @@ const ViewAllBookings = () => {
                 </button>
 
                 {isSortOpen && (
-                  <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 shadow-lg rounded-md overflow-hidden z-20 border border-gray-200 dark:border-gray-700">
+                  <div className="absolute right-0 mt-1 w-72 bg-white dark:bg-gray-800 shadow-lg rounded-md overflow-hidden z-20 border border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => handleSortChange('newest-booked')}
+                      className={`w-full text-left px-4 py-2 text-sm ${
+                        sortBy === 'newest-booked'
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}>
+                      <div className="flex items-center">
+                        <FiArrowDown className="mr-2" />
+                        <span>Booking Date: Newest First</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleSortChange('oldest-booked')}
+                      className={`w-full text-left px-4 py-2 text-sm ${
+                        sortBy === 'oldest-booked'
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}>
+                      <div className="flex items-center">
+                        <FiArrowUp className="mr-2" />
+                        <span>Booking Date: Oldest First</span>
+                      </div>
+                    </button>
                     <button
                       onClick={() => handleSortChange('newest')}
                       className={`w-full text-left px-4 py-2 text-sm ${
@@ -344,7 +425,7 @@ const ViewAllBookings = () => {
                       }`}>
                       <div className="flex items-center">
                         <FiArrowDown className="mr-2" />
-                        <span>Newest First</span>
+                        <span>Check-in Date: Newest First</span>
                       </div>
                     </button>
                     <button
@@ -356,7 +437,7 @@ const ViewAllBookings = () => {
                       }`}>
                       <div className="flex items-center">
                         <FiArrowUp className="mr-2" />
-                        <span>Oldest First</span>
+                        <span>Check-in Date: Oldest First</span>
                       </div>
                     </button>
                   </div>

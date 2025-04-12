@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { API_URL } from '../../services/core';
 import { FiUsers, FiFileText, FiHome } from 'react-icons/fi';
 import { FiMapPin, FiUser } from 'react-icons/fi';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminApi } from '../../services/adminApi';
 import DashboardSummary from '../../components/Admin/DashboardSummary';
@@ -10,7 +9,7 @@ import UserManagement from '../../components/Admin/UserManagement';
 import VerificationRequests from '../../components/Admin/VerificationRequests';
 import RoomApprovals from '../../components/Admin/RoomApprovals';
 import AdminModal from '../../components/Admin/AdminModal';
-import { getImageUrl, handleImageError } from '../../utils/imageUtils';
+import { getImageUrl } from '../../utils/imageUtils';
 
 type ActionType =
   | 'approveRoom'
@@ -72,16 +71,13 @@ const verificationStatusConfig = {
 };
 
 const AdminDashboard = () => {
-  // Authentication check
   const { isAuthenticated, user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  // If not authenticated or not admin, redirect to home
   if (!isAuthenticated || !isAdmin) {
     return <Navigate to="/" replace />;
   }
 
-  // States
   const [activeTab, setActiveTab] = useState<
     'rooms' | 'verifications' | 'users'
   >('rooms');
@@ -114,7 +110,6 @@ const AdminDashboard = () => {
         const response = await adminApi.getPendingRoomApprovals();
 
         if (response.success) {
-          // Log the response to debug
           console.log('API Response:', response);
 
           // Set the rooms directly from the data property
@@ -471,13 +466,23 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col gap-6">
           {/* Header */}
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-light">
-              Admin Dashboard
-            </h1>
-            <p className="text-gray-600 dark:text-light/80 mt-1">
-              Manage spaces, users, and verification requests
-            </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-light">
+                Admin Dashboard
+              </h1>
+              <p className="text-gray-600 dark:text-light/80 mt-1">
+                Manage spaces, users, and verification requests
+              </p>
+            </div>
+
+            <div>
+              <Link
+                to="/admin/revenue"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+                View Revenue Dashboard
+              </Link>
+            </div>
           </div>
 
           {/* Summary Cards */}

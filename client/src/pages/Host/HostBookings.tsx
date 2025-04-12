@@ -16,9 +16,11 @@ import { toast } from 'react-toastify';
 
 const HostBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<SortOption>('newest-booked');
   const [processingAction, setProcessingAction] = useState<{
     id: string;
     action: string;
@@ -41,14 +43,21 @@ const HostBookings = () => {
       }
 
       const response = await bookingApi.getHostBookings(params);
-      if (response.success) {
-        setBookings(response.data || []);
+      if (response && response.success) {
+        // Ensure data exists and is an array before setting state
+        const bookingsData = Array.isArray(response.data) ? response.data : [];
+        setBookings(bookingsData);
       } else {
-        setError(response.message || 'Failed to fetch bookings');
-        console.error('Failed to fetch bookings:', response.message);
+        const errorMessage = response?.message || 'Failed to fetch bookings';
+        setError(errorMessage);
+        console.error('Failed to fetch bookings:', errorMessage);
       }
     } catch (error) {
-      setError('Network error while loading bookings');
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Network error while loading bookings';
+      setError(errorMessage);
       console.error('Error fetching bookings:', error);
     } finally {
       setLoading(false);
@@ -59,12 +68,13 @@ const HostBookings = () => {
     setProcessingAction({ id: bookingId, action: 'confirm' });
     try {
       const response = await bookingApi.confirmBooking(bookingId);
-      if (response.success) {
+      if (response && response.success) {
         toast.success('Booking confirmed successfully');
         fetchBookings();
       } else {
-        toast.error(response.message || 'Failed to confirm booking');
-        console.error('Failed to confirm booking:', response.message);
+        const errorMessage = response?.message || 'Failed to confirm booking';
+        toast.error(errorMessage);
+        console.error('Failed to confirm booking:', errorMessage);
       }
     } catch (error) {
       toast.error('Network error while confirming booking');
@@ -81,12 +91,13 @@ const HostBookings = () => {
         bookingId,
         'Rejected by host'
       );
-      if (response.success) {
+      if (response && response.success) {
         toast.success('Booking rejected successfully');
         fetchBookings();
       } else {
-        toast.error(response.message || 'Failed to reject booking');
-        console.error('Failed to reject booking:', response.message);
+        const errorMessage = response?.message || 'Failed to reject booking';
+        toast.error(errorMessage);
+        console.error('Failed to reject booking:', errorMessage);
       }
     } catch (error) {
       toast.error('Network error while rejecting booking');
@@ -100,12 +111,13 @@ const HostBookings = () => {
     setProcessingAction({ id: bookingId, action: 'complete' });
     try {
       const response = await bookingApi.completeBooking(bookingId);
-      if (response.success) {
+      if (response && response.success) {
         toast.success('Booking marked as completed');
         fetchBookings();
       } else {
-        toast.error(response.message || 'Failed to complete booking');
-        console.error('Failed to complete booking:', response.message);
+        const errorMessage = response?.message || 'Failed to complete booking';
+        toast.error(errorMessage);
+        console.error('Failed to complete booking:', errorMessage);
       }
     } catch (error) {
       toast.error('Network error while completing booking');
@@ -119,12 +131,14 @@ const HostBookings = () => {
     setProcessingAction({ id: bookingId, action: 'mark-paid' });
     try {
       const response = await bookingApi.markPaymentReceived(bookingId);
-      if (response.success) {
+      if (response && response.success) {
         toast.success('Payment marked as received');
         fetchBookings();
       } else {
-        toast.error(response.message || 'Failed to mark payment as received');
-        console.error('Failed to mark payment as received:', response.message);
+        const errorMessage =
+          response?.message || 'Failed to mark payment as received';
+        toast.error(errorMessage);
+        console.error('Failed to mark payment as received:', errorMessage);
       }
     } catch (error) {
       toast.error('Network error while marking payment as received');
@@ -143,6 +157,73 @@ const HostBookings = () => {
     setShowReceiptModal(false);
     setSelectedBooking(null);
   };
+
+  type SortOption = 'newest' | 'oldest' | 'newest-booked' | 'oldest-booked';
+
+  const sortBookings = (
+    bookingsToSort: Booking[],
+    sortOption: SortOption
+  ): Booking[] => {
+    if (!bookingsToSort || bookingsToSort.length === 0) {
+      return [];
+    }
+
+    return [...bookingsToSort].sort((a, b) => {
+      try {
+        switch (sortOption) {
+          case 'newest':
+            // Sort by check-in date (newest first)
+            return (
+              new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime()
+            );
+          case 'oldest':
+            // Sort by check-in date (oldest first)
+            return (
+              new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime()
+            );
+          case 'newest-booked':
+            // Sort by booking creation date (newest first)
+            return (
+              new Date(b.createdAt || Date.now()).getTime() -
+              new Date(a.createdAt || Date.now()).getTime()
+            );
+          case 'oldest-booked':
+            // Sort by booking creation date (oldest first)
+            return (
+              new Date(a.createdAt || Date.now()).getTime() -
+              new Date(b.createdAt || Date.now()).getTime()
+            );
+          default:
+            return 0;
+        }
+      } catch (error) {
+        console.error('Error sorting bookings:', error);
+        return 0;
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!Array.isArray(bookings)) {
+      setFilteredBookings([]);
+      return;
+    }
+
+    let filtered = bookings.filter(
+      (booking) => booking && booking.room && typeof booking.room === 'object'
+    );
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(
+        (booking) => booking && booking.bookingStatus === statusFilter
+      );
+    }
+
+    // Then sort the filtered results
+    filtered = sortBookings(filtered, sortBy);
+
+    setFilteredBookings(filtered);
+  }, [statusFilter, sortBy, bookings]);
 
   if (error) {
     return <ErrorState error={error} onRetry={fetchBookings} />;
@@ -181,6 +262,22 @@ const HostBookings = () => {
           </div>
         </div>
 
+        {/* Sort dropdown */}
+        <div className="flex items-center space-x-2 mb-4">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Sort by:
+          </span>
+          <select
+            className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}>
+            <option value="newest-booked">Booking Date: Newest First</option>
+            <option value="oldest-booked">Booking Date: Oldest First</option>
+            <option value="newest">Check-in Date: Newest First</option>
+            <option value="oldest">Check-in Date: Oldest First</option>
+          </select>
+        </div>
+
         {/* Status filters */}
         <BookingsFilter
           statusFilter={statusFilter}
@@ -191,11 +288,11 @@ const HostBookings = () => {
         <div className="mt-6">
           {loading ? (
             <LoadingState />
-          ) : bookings.length === 0 ? (
+          ) : filteredBookings.length === 0 ? (
             <EmptyState statusFilter={statusFilter} />
           ) : (
             <BookingsList
-              bookings={bookings}
+              bookings={filteredBookings}
               processingAction={processingAction}
               onConfirmBooking={handleConfirmBooking}
               onRejectBooking={handleRejectBooking}

@@ -16,6 +16,16 @@ import {
   getPaymentStatusDisplay,
 } from '../../utils/bookingHelpers';
 
+const formatDateTime = (date: string | Date) => {
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 interface BookingCardProps {
   booking: Booking;
   processingAction: {
@@ -59,20 +69,26 @@ const BookingCard = ({
   onMarkPaymentReceived,
   onViewReceipt,
 }: BookingCardProps) => {
+  // We no longer need to handle null booking here as we'll filter these out in BookingsList
+  // This component will only receive valid bookings with valid room data
+
+  // Safely access room type with fallback
+  const roomType = booking.room.type || 'stay';
+
   // Use the actual booking time values first, and only fall back to defaults if they don't exist
   const checkInTime = booking.checkInTime
     ? convertTo12Hour(booking.checkInTime)
-    : booking.room.type === 'stay'
+    : roomType === 'stay'
     ? '2:00 PM'
-    : booking.room.type === 'conference'
+    : roomType === 'conference'
     ? '8:00 AM'
     : '10:00 AM';
 
   const checkOutTime = booking.checkOutTime
     ? convertTo12Hour(booking.checkOutTime)
-    : booking.room.type === 'stay'
+    : roomType === 'stay'
     ? '12:00 PM'
-    : booking.room.type === 'conference'
+    : roomType === 'conference'
     ? '5:00 PM'
     : '10:00 PM';
 
@@ -83,24 +99,33 @@ const BookingCard = ({
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {booking.room.title}
+                {booking.room.title || 'Untitled Room'}
               </h3>
               <div
                 className={`px-3 py-1 rounded-full text-sm font-medium flex items-center
-                ${getStatusDisplay(booking.bookingStatus).bgColor} 
-                ${getStatusDisplay(booking.bookingStatus).textColor}`}>
-                {getStatusDisplay(booking.bookingStatus).icon}
-                {getStatusDisplay(booking.bookingStatus).text}
+                ${getStatusDisplay(booking.bookingStatus || 'pending').bgColor} 
+                ${
+                  getStatusDisplay(booking.bookingStatus || 'pending').textColor
+                }`}>
+                {getStatusDisplay(booking.bookingStatus || 'pending').icon}
+                {getStatusDisplay(booking.bookingStatus || 'pending').text}
               </div>
             </div>
 
             <div className="text-sm text-gray-700 dark:text-gray-300 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
               <span className="inline-flex items-center">
                 <FiUser className="mr-1.5 text-gray-500" />
-                {booking.user.firstName} {booking.user.lastName}
+                {booking.user?.firstName || 'Guest'}{' '}
+                {booking.user?.lastName || ''}
               </span>
               <span className="inline-flex items-center text-xs text-gray-500 dark:text-gray-400">
-                Booking ID: {booking._id.substring(0, 8)}...
+                Booking ID: {(booking._id || 'N/A').substring(0, 8)}...
+              </span>
+              <span className="inline-flex items-center text-xs text-gray-500 dark:text-gray-400">
+                Booked on:{' '}
+                {booking.createdAt
+                  ? formatDateTime(booking.createdAt)
+                  : 'Unknown'}
               </span>
             </div>
 
@@ -140,25 +165,25 @@ const BookingCard = ({
                     Payment
                   </p>
                   <p className="font-medium text-gray-900 dark:text-white">
-                    ₱{booking.totalPrice.toLocaleString()}
+                    ₱{(booking.totalPrice || 0).toLocaleString()}
                   </p>
                   <div
                     className={`text-sm flex items-center ${
                       getPaymentStatusDisplay(
-                        booking.paymentStatus,
-                        booking.paymentMethod
+                        booking.paymentStatus || 'pending',
+                        booking.paymentMethod || 'card'
                       ).color
                     }`}>
                     {
                       getPaymentStatusDisplay(
-                        booking.paymentStatus,
-                        booking.paymentMethod
+                        booking.paymentStatus || 'pending',
+                        booking.paymentMethod || 'card'
                       ).icon
                     }
                     {
                       getPaymentStatusDisplay(
-                        booking.paymentStatus,
-                        booking.paymentMethod
+                        booking.paymentStatus || 'pending',
+                        booking.paymentMethod || 'card'
                       ).text
                     }
                   </div>
@@ -183,7 +208,7 @@ const BookingCard = ({
               <div className="w-24 h-24 rounded-lg overflow-hidden hidden md:block">
                 <img
                   src={booking.room.images[0]}
-                  alt={booking.room.title}
+                  alt={booking.room.title || 'Room'}
                   className="w-full h-full object-cover"
                 />
               </div>

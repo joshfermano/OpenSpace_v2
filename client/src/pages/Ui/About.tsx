@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { FaGithub, FaLinkedin } from 'react-icons/fa';
+import josh from '../../assets/profile_pic/josh.jpg';
+import yawe from '../../assets/profile_pic/yawe.jpg';
+import inaki from '../../assets/profile_pic/inaki.jpg';
+import earl from '../../assets/profile_pic/earl.jpg';
 import { MdOutlineWeb } from 'react-icons/md';
 
 const About = () => {
@@ -9,16 +13,21 @@ const About = () => {
     {
       name: 'Josh Khovick Fermano',
       role: 'Founder | Lead Developer',
-      description: 'Full-stack developer with expertise in React and Node.js',
-      github: 'https://github.com/',
-      linkedin: 'https://linkedin.com/in/',
-      website: 'https://example.com/',
+      description:
+        'Full-stack developer with expertise in TypeScript, React, Node, Express, SQL and NoSQL Databases.',
+      isFounder: true,
+      imageUrl: { josh },
+      github: 'https://github.com/joshfermano',
+      linkedin: 'https://www.linkedin.com/in/joshfermano/',
+      website: 'https://www.joshfermano.me/',
     },
     {
       name: 'Earl Justine Simbajon',
       role: 'UI/UX Designer',
       description: 'Creating intuitive and accessible user experiences',
-      github: 'https://github.com/',
+      isFounder: false,
+      imageUrl: { earl },
+      github: 'https://github.com/eaearly',
       linkedin: 'https://linkedin.com/in/',
       website: 'https://example.com/',
     },
@@ -26,6 +35,8 @@ const About = () => {
       name: 'Inaki Manuel Flores',
       role: 'Systems Analyst',
       description: 'Ensuring smooth operations and timely deliveries',
+      isFounder: false,
+      imageUrl: { inaki },
       github: 'https://github.com/',
       linkedin: 'https://linkedin.com/in/',
       website: 'https://example.com/',
@@ -34,6 +45,8 @@ const About = () => {
       name: 'Dennis Delos Santos',
       role: 'Web Developer',
       description: 'Ensuring smooth operations and timely deliveries',
+      isFounder: false,
+      imageUrl: { josh },
       github: 'https://github.com/',
       linkedin: 'https://linkedin.com/in/',
       website: 'https://example.com/',
@@ -42,6 +55,8 @@ const About = () => {
       name: 'Yahweh Sarceno',
       role: 'Web Developer',
       description: 'Ensuring smooth operations and timely deliveries',
+      isFounder: false,
+      imageUrl: { yawe },
       github: 'https://github.com/',
       linkedin: 'https://linkedin.com/in/',
       website: 'https://example.com/',
@@ -59,7 +74,6 @@ const About = () => {
             that inspire creativity and productivity.
           </p>
         </div>
-
         {/* Mission Section */}
         <div className="grid md:grid-cols-2 gap-10 items-center">
           <div className="space-y-5 order-2 md:order-1">
@@ -80,7 +94,6 @@ const About = () => {
             <p className="text-gray-400 italic">Mission Image</p>
           </div>
         </div>
-
         {/* Features Section */}
         <div className="space-y-10">
           <h2 className="text-3xl font-bold text-center">What We Offer</h2>
@@ -102,56 +115,144 @@ const About = () => {
         </div>
 
         {/* Team Section */}
-        <div className="space-y-10">
+        <div className="space-y-12">
           <h2 className="text-3xl font-bold text-center">Our Team</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {team.map((member, index) => (
+
+          {/* Founder Section */}
+          {team
+            .filter((member) => member.isFounder)
+            .map((founder, index) => (
               <div
-                key={index}
-                className="relative overflow-hidden rounded-lg transition-all duration-300"
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}>
-                <div className="aspect-w-3 aspect-h-4 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                  <p className="text-gray-400 italic">Photo</p>
-                </div>
-
-                <div
-                  className={`absolute inset-0 bg-darkBlue/80 dark:bg-light/90 flex flex-col justify-end p-5 text-light dark:text-darkBlue transition-all duration-500 ${
-                    hoveredIndex === index ? 'opacity-100' : 'opacity-0'
-                  }`}>
-                  <h3 className="text-xl font-bold">{member.name}</h3>
-                  <p className="font-medium">{member.role}</p>
-                  <p className="mt-2 text-sm">{member.description}</p>
-                  <div className="flex gap-4 mt-4">
-                    <a
-                      href={member.github}
-                      target="_blank"
-                      rel="noopener noreferrer">
-                      <FaGithub className="text-xl hover:scale-110 transition-transform" />
-                    </a>
-                    <a
-                      href={member.linkedin}
-                      target="_blank"
-                      rel="noopener noreferrer">
-                      <FaLinkedin className="text-xl hover:scale-110 transition-transform" />
-                    </a>
-                    <a
-                      href={member.website}
-                      target="_blank"
-                      rel="noopener noreferrer">
-                      <MdOutlineWeb className="text-xl hover:scale-110 transition-transform" />
-                    </a>
+                key={`founder-${index}`}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
+                <div className="flex flex-col md:flex-row">
+                  <div className="md:w-1/3 h-64 md:h-auto relative overflow-hidden">
+                    <img
+                      src={founder.imageUrl.josh}
+                      alt={founder.name}
+                      className="w-full h-full object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end md:hidden">
+                      <div className="p-4 text-white">
+                        <h3 className="text-xl font-bold">{founder.name}</h3>
+                        <p className="text-sm text-white/80">{founder.role}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                <div className="p-4 bg-white dark:bg-gray-800">
-                  <h3 className="font-bold">{member.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {member.role}
-                  </p>
+                  <div className="md:w-2/3 p-6 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-darkBlue dark:text-white hidden md:block">
+                        {founder.name}
+                      </h3>
+                      <p className="text-blue-600 dark:text-blue-400 font-medium mb-3 hidden md:block">
+                        {founder.role}
+                      </p>
+                      <p className="text-gray-700 dark:text-gray-300 mb-4">
+                        {founder.description}
+                      </p>
+                    </div>
+
+                    <div className="flex space-x-4 mt-4">
+                      <a
+                        href={founder.github}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 dark:text-gray-400 hover:text-darkBlue dark:hover:text-light transition-colors">
+                        <FaGithub size={20} />
+                      </a>
+                      <a
+                        href={founder.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 dark:text-gray-400 hover:text-darkBlue dark:hover:text-light transition-colors">
+                        <FaLinkedin size={20} />
+                      </a>
+                      <a
+                        href={founder.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 dark:text-gray-400 hover:text-darkBlue dark:hover:text-light transition-colors">
+                        <MdOutlineWeb size={20} />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
+
+          {/* Team Members Section */}
+          <div className="space-y-6">
+            <h3 className="text-xl font-semibold text-center text-gray-700 dark:text-gray-300">
+              Team Members
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+              {team
+                .filter((member) => !member.isFounder)
+                .map((member, index) => (
+                  <div
+                    key={`member-${index}`}
+                    className="flex flex-col md:flex-row bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+                    onMouseEnter={() => setHoveredIndex(index)}
+                    onMouseLeave={() => setHoveredIndex(null)}>
+                    <div className="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
+                      {/* Use the correct image property based on the member name */}
+                      <img
+                        src={
+                          member.name.includes('Yahweh')
+                            ? member.imageUrl.yawe
+                            : member.name.includes('Inaki')
+                            ? member.imageUrl.inaki
+                            : member.name.includes('Earl')
+                            ? member.imageUrl.earl
+                            : member.imageUrl.josh
+                        }
+                        alt={member.name}
+                        className={`w-full h-full object-cover transition-transform duration-300 ${
+                          hoveredIndex === index ? 'scale-105' : ''
+                        }`}
+                      />
+                    </div>
+
+                    <div className="md:w-2/3 p-5">
+                      <h3 className="text-lg font-semibold text-darkBlue dark:text-white">
+                        {member.name}
+                      </h3>
+                      <p className="text-blue-600 dark:text-blue-400 text-sm mb-2">
+                        {member.role}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        {member.description}
+                      </p>
+
+                      <div className="flex space-x-3 mt-2">
+                        <a
+                          href={member.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-600 dark:text-gray-400 hover:text-darkBlue dark:hover:text-light transition-colors">
+                          <FaGithub size={18} />
+                        </a>
+                        <a
+                          href={member.linkedin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-600 dark:text-gray-400 hover:text-darkBlue dark:hover:text-light transition-colors">
+                          <FaLinkedin size={18} />
+                        </a>
+                        <a
+                          href={member.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-600 dark:text-gray-400 hover:text-darkBlue dark:hover:text-light transition-colors">
+                          <MdOutlineWeb size={18} />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
 
@@ -162,7 +263,9 @@ const About = () => {
             Have questions about OpenSpace? We'd love to hear from you.
           </p>
           <button className="mt-4 px-6 py-3 bg-darkBlue text-light dark:bg-light dark:text-darkBlue rounded-lg hover:scale-105 transition-all duration-300">
-            Contact Us
+            <a href="mailto:openspacereserve@gmail.com" target="_blank">
+              Contact Us
+            </a>
           </button>
         </div>
       </div>

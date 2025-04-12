@@ -20,6 +20,14 @@ dist-ssr
 .env.test
 .env.production
 
+# images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

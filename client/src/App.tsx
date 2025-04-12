@@ -24,6 +24,7 @@ import ViewAllFavorites from './pages/Room/ViewAllFavorites';
 
 // Dashboard Pages
 import EarningsDashboard from './pages/Dashboard/EarningsDashboard';
+import PlatformRevenueDashboard from './pages/Dashboard/PlatformRevenueDashboard';
 
 // UI Pages
 import Homepage from './pages/Ui/Homepage';
@@ -217,6 +218,14 @@ const router = createBrowserRouter(
             element={
               <ProtectedRoute requiredRole="admin">
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="revenue"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <PlatformRevenueDashboard />
               </ProtectedRoute>
             }
           />
