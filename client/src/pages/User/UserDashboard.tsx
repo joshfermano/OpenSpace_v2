@@ -76,17 +76,21 @@ const UserDashboard = () => {
             ...user,
             ...dashboardResponse.data.user,
             phoneNumber:
-              dashboardResponse.data.user.phoneNumber || user.phoneNumber || '',
+              dashboardResponse.data.user.phoneNumber ||
+              user?.phoneNumber ||
+              '',
             dateJoined:
-              dashboardResponse.data.user.createdAt || new Date().toISOString(),
+              dashboardResponse.data.user.createdAt ||
+              user?.createdAt ||
+              new Date().toISOString(),
           };
 
           setUserData(combinedUserData);
         } else {
           setUserData({
             ...(user as ExtendedUser),
-            phoneNumber: user.phoneNumber || '',
-            dateJoined: user.createdAt || new Date().toISOString(),
+            phoneNumber: user?.phoneNumber || '',
+            dateJoined: user?.createdAt || new Date().toISOString(),
           });
         }
 
@@ -120,8 +124,8 @@ const UserDashboard = () => {
         if (user) {
           setUserData({
             ...(user as ExtendedUser),
-            phoneNumber: user.phoneNumber || '',
-            dateJoined: user.createdAt || new Date().toISOString(),
+            phoneNumber: user?.phoneNumber || '',
+            dateJoined: user?.createdAt || new Date().toISOString(),
           });
         }
         setBookings([]);
