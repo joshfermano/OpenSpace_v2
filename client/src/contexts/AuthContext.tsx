@@ -6,13 +6,11 @@ interface User {
   firstName: string;
   lastName: string;
   email: string;
-  phoneNumber: string;
-  profileImage?: string;
   role: 'user' | 'host' | 'admin';
-  verificationLevel: 'none' | 'basic' | 'verified';
+  profileImage?: string;
+  verificationLevel: string;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
-  createdAt?: string;
 }
 
 interface AuthContextType {
@@ -20,9 +18,10 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<User | null>;
+  login: (email: string, password: string) => Promise<any>;
   logout: () => Promise<void>;
-  register: (formData: FormData) => Promise<User | null>;
+  register: (userData: any) => Promise<any>;
+  checkAuth: () => Promise<void>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
   isVerified: () => boolean;
@@ -39,34 +38,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const clearError = () => setError(null);
 
-  // Function to check if the user is verified
   const isVerified = () => {
     if (!user) return false;
     return (
       user.verificationLevel === 'verified' ||
-      user.verificationLevel === 'basic'
+      user.verificationLevel === 'basic' ||
+      user.role === 'admin'
     );
   };
 
-  // Enhanced checkAuth function
   const checkAuth = async () => {
     try {
       setIsLoading(true);
-      const response = await authApi.getCurrentUser();
+      const token = localStorage.getItem('token');
 
-      console.log('Auth check response:', response);
+      if (!token) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await authApi.getCurrentUser();
 
       if (response.success && response.data) {
         setUser(response.data);
+        console.log('Successfully authenticated as:', response.data.role);
       } else {
         setUser(null);
-        // Clear any existing auth data
-        document.cookie =
-          'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        localStorage.removeItem('token');
       }
     } catch (err) {
       console.error('Auth check failed:', err);
       setUser(null);
+      localStorage.removeItem('token');
     } finally {
       setIsLoading(false);
     }
@@ -74,17 +78,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     checkAuth();
-
-    const handleAuthExpired = () => {
-      setUser(null);
-      setError('Your session has expired. Please log in again.');
-    };
-
-    window.addEventListener('auth:expired', handleAuthExpired);
-
-    return () => {
-      window.removeEventListener('auth:expired', handleAuthExpired);
-    };
   }, []);
 
   const refreshUser = async () => {
@@ -97,33 +90,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       setUser(response.data);
-      return response.data;
-    } catch (err: any) {
-      setError(err.message || 'Failed to refresh user data');
-      throw err;
+      return response;
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (
-    email: string,
-    password: string
-  ): Promise<User | null> => {
+  const login = async (email: string, password: string) => {
     try {
-      setIsLoading(true);
       clearError();
-
+      setIsLoading(true);
       const response = await authApi.login(email, password);
 
       if (response.success) {
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
         setUser(response.data);
         return response.data;
+      } else {
+        setError(response.message || 'Login failed');
+        return null;
       }
-      return null;
-    } catch (err: any) {
-      setError(err.message || 'Failed to login');
-      throw err;
+    } catch (error: any) {
+      setError(error.message || 'An error occurred during login');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -134,38 +128,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       await authApi.logout();
       setUser(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to logout');
+      localStorage.removeItem('token');
+    } catch (error) {
+      console.error('Logout error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (formData: FormData): Promise<User | null> => {
+  const register = async (userData: any) => {
     try {
-      setIsLoading(true);
       clearError();
-
-      const userData = {
-        email: formData.get('email') as string,
-        password: formData.get('password') as string,
-        firstName: formData.get('firstName') as string,
-        lastName: formData.get('lastName') as string,
-        phoneNumber: (formData.get('phoneNumber') as string) || undefined,
-      };
-
-      console.log('Sending registration data:', userData);
-
+      setIsLoading(true);
       const response = await authApi.register(userData);
 
       if (response.success) {
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
         setUser(response.data);
-        return response.data;
+      } else {
+        setError(response.message || 'Registration failed');
       }
-      return null;
-    } catch (err: any) {
-      setError(err.message || 'Failed to register');
-      throw err;
+
+      return response;
+    } catch (error: any) {
+      setError(error.message || 'An error occurred during registration');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -179,9 +168,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     login,
     logout,
     register,
+    checkAuth,
     refreshUser,
     clearError,
-    isVerified, // Added to the context value
+    isVerified,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -189,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

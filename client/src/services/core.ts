@@ -1,41 +1,41 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+export const API_URL =
+  process.env.NODE_ENV === 'production'
+    ? 'https://openspace-api.onrender.com'
+    : 'http://localhost:5000';
 
 export const fetchWithAuth = async (
   endpoint: string,
   options: RequestInit = {}
-): Promise<Response> => {
+) => {
   const token = localStorage.getItem('token');
 
-  const defaultHeaders = {
+  const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
-    Authorization: token ? `Bearer ${token}` : '',
   };
 
-  const config = {
+  if (token) {
+    defaultHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
+  const config: RequestInit = {
     ...options,
-    credentials: 'include' as RequestCredentials,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...(options.headers || {}),
     },
+    credentials: 'include',
   };
 
-  if (
-    options.body &&
-    typeof options.body !== 'string' &&
-    !(options.body instanceof FormData)
-  ) {
-    config.body = JSON.stringify(options.body);
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, config);
+
+    if (response.status === 401) {
+      console.warn('Authentication failed:', await response.text());
+    }
+
+    return response;
+  } catch (error) {
+    console.error(`API request failed for ${endpoint}:`, error);
+    throw error;
   }
-
-  const response = await fetch(`${API_URL}${endpoint}`, config);
-
-  // Handle token expiration
-  if (response.status === 401) {
-    // You could implement token refresh logic here
-    // Or simply clear the token and redirect to login
-    console.warn('Authentication token may be expired');
-  }
-
-  return response;
 };

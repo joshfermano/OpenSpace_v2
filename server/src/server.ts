@@ -22,7 +22,6 @@ import adminEarningsRoutes from './routes/adminEarningsRoutes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
   'https://openspace-reserve.vercel.app',
@@ -32,8 +31,8 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (
-      origin: string,
-      callback: (arg0: Error, arg1: boolean) => any
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void
     ) {
       if (!origin) return callback(null, true);
 
@@ -44,6 +43,8 @@ app.use(
       return callback(null, true);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 

@@ -38,13 +38,15 @@ const AdminLogin = () => {
     setError(null);
 
     try {
-      const loggedInUser = await login(formData.email, formData.password);
+      const response = await login(formData.email, formData.password);
 
-      if (loggedInUser) {
-        if (loggedInUser.role === 'admin') {
+      if (response) {
+        if (response.role === 'admin') {
           navigate('/admin/dashboard');
         } else {
           setError('Access denied. Only administrators can log in here.');
+          // Clear token if not admin
+          localStorage.removeItem('token');
         }
       } else {
         setError('Invalid email or password');

@@ -50,7 +50,7 @@ const generateToken = (user: IUser): string => {
     secret,
     {
       expiresIn: process.env.JWT_EXPIRES_IN || '24h',
-    } as jwt.SignOptions
+    }
   );
 };
 
@@ -179,22 +179,24 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const token = generateToken(user);
 
-    const cookieOptions: CustomCookieOptions = {
+    const cookieOptions: CookieOptions = {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
     };
 
     const userResponse = user.toObject();
     delete userResponse.password;
 
+    console.log(`User logged in: ${user.email} with role: ${user.role}`);
+
     res.status(200).cookie('token', token, cookieOptions).json({
       success: true,
       message: 'Login successful',
       data: userResponse,
-      token,
+      token, // Include token in response for localStorage
     });
   } catch (error: any) {
     console.error('Login error:', error);
@@ -225,14 +227,31 @@ export const getCurrentUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    const user = ensureAuthenticated(req, res);
-    if (!user) return;
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      });
+      return;
+    }
+
+    // Return a fresh copy of the user
+    const freshUser = await User.findById(req.user._id).select('-password');
+
+    if (!freshUser) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
 
     res.status(200).json({
       success: true,
-      data: user,
+      data: freshUser,
     });
   } catch (error: any) {
+    console.error('Error in getCurrentUser:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user data',
@@ -442,10 +461,14 @@ export const verifyEmailWithOTP = async (
   res: Response
 ): Promise<void> => {
   try {
-    const user = ensureAuthenticated(req, res);
-    if (!user) return;
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      });
+      return;
+    }
 
-    const userId = user._id;
     const { otp } = req.body;
 
     if (!otp) {
@@ -456,11 +479,9 @@ export const verifyEmailWithOTP = async (
       return;
     }
 
-    // Find the OTP record
     const otpRecord = await OtpVerification.findOne({
-      user: userId,
-      type: 'email',
       otp,
+      type: 'email',
     });
 
     if (!otpRecord) {
@@ -471,7 +492,6 @@ export const verifyEmailWithOTP = async (
       return;
     }
 
-    // Check if OTP is expired
     if (otpRecord.expiresAt < new Date()) {
       await OtpVerification.deleteOne({ _id: otpRecord._id });
       res.status(400).json({
@@ -481,17 +501,40 @@ export const verifyEmailWithOTP = async (
       return;
     }
 
-    // Update user's email verification status
-    await User.findByIdAndUpdate(userId, { isEmailVerified: true });
+    const user = await User.findById(otpRecord.user);
 
-    // Delete used OTP
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    user.isEmailVerified = true;
+    await user.save();
+
     await OtpVerification.deleteOne({ _id: otpRecord._id });
+
+    const token = generateToken(user);
+
+    const cookieOptions: CookieOptions = {
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    };
+
+    res.cookie('token', token, cookieOptions);
 
     res.status(200).json({
       success: true,
       message: 'Email verified successfully',
+      token,
     });
   } catch (error: any) {
+    console.error('Error verifying email:', error);
     res.status(500).json({
       success: false,
       message: 'Error verifying email',
