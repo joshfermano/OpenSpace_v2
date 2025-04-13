@@ -11,6 +11,8 @@ interface User {
   verificationLevel: string;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  phoneNumber?: string;
+  createdAt?: string;
 }
 
 interface AuthContextType {
