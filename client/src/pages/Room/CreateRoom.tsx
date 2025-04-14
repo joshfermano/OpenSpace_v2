@@ -12,7 +12,6 @@ import { MdOutlineRule } from 'react-icons/md';
 import { FaPesoSign } from 'react-icons/fa6';
 import { roomApi } from '../../services/roomApi';
 import { useAuth } from '../../contexts/AuthContext';
-import { API_URL } from '../../services/core';
 
 const AMENITIES_OPTIONS = [
   'Wi-Fi',
@@ -94,11 +93,20 @@ const CreateRoom = () => {
   const { isAuthenticated, user } = useAuth();
 
   useEffect(() => {
-    if (isAuthenticated && user && user.role !== 'host') {
-      navigate('/become-host');
-    } else if (!isAuthenticated) {
-      navigate('/auth/login?redirect=/rooms/create');
-    }
+    const checkAuthStatus = async () => {
+      if (!isAuthenticated) {
+        navigate('/auth/login?redirect=/rooms/create');
+      } else if (user && user.role !== 'host') {
+        navigate('/become-host');
+      } else if (
+        user &&
+        (!user.isEmailVerified || user.verificationLevel !== 'verified')
+      ) {
+        navigate('/verification');
+      }
+    };
+
+    checkAuthStatus();
   }, [isAuthenticated, user, navigate]);
 
   // Form state
@@ -584,26 +592,18 @@ const CreateRoom = () => {
 
       const roomId = roomResponse.data._id;
 
-      // Then, if we have images, upload them
       if (imageFiles.length > 0) {
-        const formData = new FormData();
-        imageFiles.forEach((file) => {
-          formData.append('images', file);
-        });
+        try {
+          const imageResponse = await roomApi.uploadRoomImages(
+            roomId,
+            imageFiles
+          );
 
-        // Use fetch directly for file uploads with full URL
-        const imageResponse = await fetch(
-          `${API_URL}/api/rooms/${roomId}/images`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            body: formData,
+          if (!imageResponse.success) {
+            console.error('Image upload failed:', imageResponse.message);
           }
-        );
-
-        if (!imageResponse.ok) {
-          const errorData = await imageResponse.json();
-          throw new Error(errorData.message || 'Failed to upload images');
+        } catch (imageError) {
+          console.error('Error uploading images:', imageError);
         }
       }
 

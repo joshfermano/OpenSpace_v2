@@ -114,14 +114,21 @@ export const roomApi = {
         formData.append('images', file);
       });
 
+      const token = localStorage.getItem('token');
+
       const response = await fetch(`${API_URL}/api/rooms/${roomId}/images`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload images');
+      }
 
       const data = await response.json();
       return data;
