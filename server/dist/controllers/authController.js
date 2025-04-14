@@ -85,7 +85,8 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             });
             return;
         }
-        const user = yield User_1.default.create({
+        // Create user data
+        const userData = {
             email,
             password,
             firstName,
@@ -95,20 +96,34 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             active: true,
             verificationLevel: 'basic',
             isEmailVerified: false,
-            isPhoneVerified: true,
+            isPhoneVerified: false, // This should be false initially
             isHostVerified: false,
             savedRooms: [],
-        });
+        };
+        // If there's a government ID file in the request
+        if (req.file) {
+            userData.identificationDocument = {
+                idType: 'Other',
+                idNumber: 'Pending Review',
+                idImage: req.file.path,
+                uploadDate: new Date(),
+                verificationStatus: 'pending',
+            };
+        }
+        const user = yield User_1.default.create(userData);
+        // Generate JWT token
         const token = generateToken(user);
         const cookieOptions = {
             expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/',
         };
         const userResponse = user.toObject();
         delete userResponse.password;
+        // Send verification email
+        yield (0, exports.sendEmailVerificationOTP)(user._id, user.email);
         res
             .status(201)
             .cookie('token', token, cookieOptions)
@@ -161,16 +176,17 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/',
         };
         const userResponse = user.toObject();
         delete userResponse.password;
+        console.log(`User logged in: ${user.email} with role: ${user.role}`);
         res.status(200).cookie('token', token, cookieOptions).json({
             success: true,
             message: 'Login successful',
             data: userResponse,
-            token,
+            token, // Include token in response for localStorage
         });
     }
     catch (error) {
@@ -198,15 +214,29 @@ const logout = (_req, res) => {
 exports.logout = logout;
 const getCurrentUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const user = ensureAuthenticated(req, res);
-        if (!user)
+        if (!req.user) {
+            res.status(401).json({
+                success: false,
+                message: 'Not authenticated',
+            });
             return;
+        }
+        // Return a fresh copy of the user
+        const freshUser = yield User_1.default.findById(req.user._id).select('-password');
+        if (!freshUser) {
+            res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+            return;
+        }
         res.status(200).json({
             success: true,
-            data: user,
+            data: freshUser,
         });
     }
     catch (error) {
+        console.error('Error in getCurrentUser:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching user data',
@@ -381,10 +411,13 @@ exports.resendEmailVerification = resendEmailVerification;
 // Verify email with OTP
 const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const user = ensureAuthenticated(req, res);
-        if (!user)
+        if (!req.user) {
+            res.status(401).json({
+                success: false,
+                message: 'Not authenticated',
+            });
             return;
-        const userId = user._id;
+        }
         const { otp } = req.body;
         if (!otp) {
             res.status(400).json({
@@ -393,11 +426,9 @@ const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, funct
             });
             return;
         }
-        // Find the OTP record
         const otpRecord = yield OtpVerification_1.default.findOne({
-            user: userId,
-            type: 'email',
             otp,
+            type: 'email',
         });
         if (!otpRecord) {
             res.status(400).json({
@@ -406,7 +437,6 @@ const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, funct
             });
             return;
         }
-        // Check if OTP is expired
         if (otpRecord.expiresAt < new Date()) {
             yield OtpVerification_1.default.deleteOne({ _id: otpRecord._id });
             res.status(400).json({
@@ -415,16 +445,34 @@ const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, funct
             });
             return;
         }
-        // Update user's email verification status
-        yield User_1.default.findByIdAndUpdate(userId, { isEmailVerified: true });
-        // Delete used OTP
+        const user = yield User_1.default.findById(otpRecord.user);
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+            return;
+        }
+        user.isEmailVerified = true;
+        yield user.save();
         yield OtpVerification_1.default.deleteOne({ _id: otpRecord._id });
+        const token = generateToken(user);
+        const cookieOptions = {
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
+        };
+        res.cookie('token', token, cookieOptions);
         res.status(200).json({
             success: true,
             message: 'Email verified successfully',
+            token,
         });
     }
     catch (error) {
+        console.error('Error verifying email:', error);
         res.status(500).json({
             success: false,
             message: 'Error verifying email',

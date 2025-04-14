@@ -74,19 +74,28 @@ const Register = () => {
     setError(null);
 
     try {
-      const formDataToSubmit = new FormData(e.target as HTMLFormElement);
+      // Create FormData
+      const formDataToSubmit = new FormData();
 
+      // Add text fields
+      formDataToSubmit.append('email', formData.email);
+      formDataToSubmit.append('password', formData.password);
+      formDataToSubmit.append('firstName', formData.firstName);
+      formDataToSubmit.append('lastName', formData.lastName);
+      formDataToSubmit.append('phoneNumber', formData.phoneNumber);
+
+      // Add government ID if provided
       if (governmentId) {
-        formDataToSubmit.set('governmentId', governmentId);
+        formDataToSubmit.append('governmentId', governmentId);
       }
 
-      const user = await register(formDataToSubmit);
+      const response = await register(formDataToSubmit);
 
-      if (user) {
+      if (response.success) {
         // Redirect to verification page
         navigate('/verification/email-verification');
       } else {
-        setError('Registration failed. Please try again.');
+        setError(response.message || 'Registration failed. Please try again.');
       }
     } catch (error: any) {
       setError(error.message || 'Registration failed. Please try again.');

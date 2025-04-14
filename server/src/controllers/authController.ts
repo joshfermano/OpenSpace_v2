@@ -99,7 +99,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.create({
+    // Create user data
+    const userData: any = {
       email,
       password,
       firstName,
@@ -109,23 +110,40 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       active: true,
       verificationLevel: 'basic',
       isEmailVerified: false,
-      isPhoneVerified: true,
+      isPhoneVerified: false, // This should be false initially
       isHostVerified: false,
       savedRooms: [],
-    });
+    };
 
+    // If there's a government ID file in the request
+    if (req.file) {
+      userData.identificationDocument = {
+        idType: 'Other',
+        idNumber: 'Pending Review',
+        idImage: req.file.path,
+        uploadDate: new Date(),
+        verificationStatus: 'pending',
+      };
+    }
+
+    const user = await User.create(userData);
+
+    // Generate JWT token
     const token = generateToken(user);
 
     const cookieOptions: CustomCookieOptions = {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
     };
 
     const userResponse = user.toObject();
     delete userResponse.password;
+
+    // Send verification email
+    await sendEmailVerificationOTP(user._id, user.email);
 
     res
       .status(201)

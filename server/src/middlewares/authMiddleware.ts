@@ -13,6 +13,7 @@ type AuthRequest = Request & {
   user?: any;
 };
 
+// The original protect middleware
 export const protect = async (
   req: Request,
   res: Response,
@@ -105,6 +106,74 @@ export const protect = async (
   }
 };
 
+// Add the authenticateJWT function that's being used in routes
+export const authenticateJWT = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    let token;
+
+    // Check for token in Authorization header
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+    // Also check in cookies
+    else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+    }
+
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+      return;
+    }
+
+    // Verify token
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined in environment variables');
+    }
+
+    const decoded = jwt.verify(token, secret) as JwtPayload;
+
+    // Find user by id
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    // Check if user is banned
+    if (user.active === false) {
+      res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated',
+      });
+      return;
+    }
+
+    // Attach user to request
+    (req as AuthRequest).user = user;
+    next();
+  } catch (error) {
+    console.error('JWT authentication error:', error);
+    res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token',
+    });
+  }
+};
+
 export const adminOnly = (
   req: AuthRequest,
   res: Response,
@@ -130,6 +199,30 @@ export const adminOnly = (
     res.status(403).json({
       success: false,
       message: 'Not authorized, admin access required',
+    });
+  }
+};
+
+// Add hostOnly middleware for host-specific routes
+export const hostOnly = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Not authenticated',
+    });
+    return;
+  }
+
+  if (req.user.role === 'host' || req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Host access required',
     });
   }
 };

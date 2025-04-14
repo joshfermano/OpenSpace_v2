@@ -40,12 +40,12 @@ const express_1 = __importDefault(require("express"));
 const adminController = __importStar(require("../controllers/adminController"));
 const authMiddleware_1 = require("../middlewares/authMiddleware");
 const router = express_1.default.Router();
-// All admin routes require authentication and admin role
-router.use(authMiddleware_1.protect);
-router.use(authMiddleware_1.adminOnly);
-// Admin setup endpoints (these don't need the middleware since they're for initial setup)
+// Public endpoint - no middleware needed
 router.get('/check-admin-exists', adminController.checkAdminExists);
 router.post('/initial-admin-setup', adminController.initialAdminSetup);
+// All other admin routes require authentication and admin role
+router.use(authMiddleware_1.protect);
+router.use(authMiddleware_1.adminOnly);
 // User management
 router.get('/users', adminController.getAllUsers);
 router.get('/users/:userId', adminController.getUserById);

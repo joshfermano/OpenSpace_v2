@@ -1,23 +1,30 @@
 import { API_URL, fetchWithAuth } from './core';
 
 export const authApi = {
-  register: async (formData: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    phoneNumber?: string;
-  }) => {
+  register: async (userData: FormData | any) => {
     try {
-      console.log('Sending registration request with data:', formData);
+      console.log('Sending registration request with data:', userData);
+
+      let headers = {};
+      let requestBody;
+
+      // Check if userData is FormData
+      if (userData instanceof FormData) {
+        // Don't set Content-Type header - the browser will set it with the boundary
+        requestBody = userData;
+      } else {
+        // If it's JSON data
+        headers = {
+          'Content-Type': 'application/json',
+        };
+        requestBody = JSON.stringify(userData);
+      }
 
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers,
+        body: requestBody,
       });
 
       const data = await response.json();

@@ -33,7 +33,6 @@ const adminEarningsRoutes_1 = __importDefault(require("./routes/adminEarningsRou
 // Create Express app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
-// CORS configuration
 const allowedOrigins = [
     'http://localhost:5173',
     'https://openspace-reserve.vercel.app',
@@ -50,6 +49,8 @@ app.use((0, cors_1.default)({
         return callback(null, true);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, 'uploads')));
 app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../public/uploads')));
