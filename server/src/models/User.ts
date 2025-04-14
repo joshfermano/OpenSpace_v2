@@ -146,6 +146,7 @@ const userSchema = new Schema<IUser>(
           'PhilHealth ID',
           'Postal ID',
           'TIN Card',
+          'Other',
         ],
       },
       idNumber: { type: String },

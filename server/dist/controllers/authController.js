@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePassword = exports.resetPassword = exports.validateResetToken = exports.requestPasswordReset = exports.becomeHost = exports.uploadIdVerification = exports.verifyPhoneWithOTP = exports.initiatePhoneVerification = exports.sendPhoneVerificationOTP = exports.verifyEmailWithOTP = exports.resendEmailVerification = exports.initiateEmailVerification = exports.sendEmailVerificationOTP = exports.getCurrentUser = exports.logout = exports.login = exports.register = void 0;
+const imageService_1 = require("../services/imageService");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const emailService_1 = require("../services/emailService");
 const crypto_1 = __importDefault(require("crypto"));
@@ -21,6 +22,7 @@ const OtpVerification_1 = __importDefault(require("../models/OtpVerification"));
 const emailService_2 = require("../services/emailService");
 const mongoose_1 = __importDefault(require("mongoose"));
 require("dotenv/config");
+const path_1 = __importDefault(require("path"));
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -100,15 +102,28 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             isHostVerified: false,
             savedRooms: [],
         };
-        // If there's a government ID file in the request
         if (req.file) {
-            userData.identificationDocument = {
-                idType: 'Other',
-                idNumber: 'Pending Review',
-                idImage: req.file.path,
-                uploadDate: new Date(),
-                verificationStatus: 'pending',
-            };
+            // Upload file to Supabase
+            const supabaseImageUrl = yield (0, imageService_1.uploadImage)(req.file.path, 'verifications', `user-id-${Date.now()}-${path_1.default.basename(req.file.originalname)}`);
+            if (supabaseImageUrl) {
+                userData.identificationDocument = {
+                    idType: 'Passport',
+                    idNumber: 'Pending Review',
+                    idImage: supabaseImageUrl,
+                    uploadDate: new Date(),
+                    verificationStatus: 'pending',
+                };
+            }
+            else {
+                console.error('Failed to upload ID to Supabase, using local path as fallback');
+                userData.identificationDocument = {
+                    idType: 'Passport',
+                    idNumber: 'Pending Review',
+                    idImage: req.file.path, // Fallback to local path
+                    uploadDate: new Date(),
+                    verificationStatus: 'pending',
+                };
+            }
         }
         const user = yield User_1.default.create(userData);
         // Generate JWT token

@@ -145,7 +145,6 @@ const VerificationRequests: React.FC<VerificationRequestsProps> = ({
                           // Log the document URL for debugging
                           console.log('Raw document URL:', request.documentUrl);
 
-                          // Handle different URL formats
                           let formattedUrl;
                           if (request.documentUrl.startsWith('http')) {
                             formattedUrl = request.documentUrl;
@@ -153,13 +152,9 @@ const VerificationRequests: React.FC<VerificationRequestsProps> = ({
                             // This is a base64 encoded image
                             formattedUrl = request.documentUrl;
                           } else {
-                            // This is a relative path - properly format it
                             formattedUrl = `${
                               import.meta.env.VITE_API_URL || ''
-                            }/uploads/verifications/${
-                              request.documentUrl.split('/').pop() ||
-                              request.documentUrl
-                            }`;
+                            }${request.documentUrl}`;
                           }
 
                           console.log('Formatted document URL:', formattedUrl);

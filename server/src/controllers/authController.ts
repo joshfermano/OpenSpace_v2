@@ -1,4 +1,5 @@
 import { Request, Response, CookieOptions } from 'express';
+import { uploadImage } from '../services/imageService';
 import jwt from 'jsonwebtoken';
 import { sendPasswordResetEmail } from '../services/emailService';
 import crypto from 'crypto';
@@ -7,6 +8,7 @@ import OtpVerification from '../models/OtpVerification';
 import { sendVerificationEmail } from '../services/emailService';
 import mongoose from 'mongoose';
 import 'dotenv/config';
+import path from 'path';
 
 // Define a custom Request type that includes the user property
 type AuthRequest = Request;
@@ -115,15 +117,34 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       savedRooms: [],
     };
 
-    // If there's a government ID file in the request
     if (req.file) {
-      userData.identificationDocument = {
-        idType: 'Other',
-        idNumber: 'Pending Review',
-        idImage: req.file.path,
-        uploadDate: new Date(),
-        verificationStatus: 'pending',
-      };
+      // Upload file to Supabase
+      const supabaseImageUrl = await uploadImage(
+        req.file.path,
+        'verifications',
+        `user-id-${Date.now()}-${path.basename(req.file.originalname)}`
+      );
+
+      if (supabaseImageUrl) {
+        userData.identificationDocument = {
+          idType: 'Passport',
+          idNumber: 'Pending Review',
+          idImage: supabaseImageUrl,
+          uploadDate: new Date(),
+          verificationStatus: 'pending',
+        };
+      } else {
+        console.error(
+          'Failed to upload ID to Supabase, using local path as fallback'
+        );
+        userData.identificationDocument = {
+          idType: 'Passport',
+          idNumber: 'Pending Review',
+          idImage: req.file.path, // Fallback to local path
+          uploadDate: new Date(),
+          verificationStatus: 'pending',
+        };
+      }
     }
 
     const user = await User.create(userData);

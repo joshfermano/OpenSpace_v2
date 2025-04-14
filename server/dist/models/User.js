@@ -130,6 +130,7 @@ const userSchema = new mongoose_1.Schema({
                 'PhilHealth ID',
                 'Postal ID',
                 'TIN Card',
+                'Other',
             ],
         },
         idNumber: { type: String },
