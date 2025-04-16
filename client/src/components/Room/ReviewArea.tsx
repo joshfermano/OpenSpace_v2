@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FaStar,
   FaRegStar,
   FaEdit,
   FaTrash,
   FaUserCircle,
+  FaAngleRight,
 } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 import { reviewApi } from '../../services/reviewApi';
@@ -39,6 +41,7 @@ interface ReviewModalProps {
 interface ReviewAreaProps {
   roomId: string;
   userHasBooking?: boolean;
+  limitReviews?: boolean;
 }
 
 // Review Modal Component
@@ -50,6 +53,7 @@ const ReviewModal = ({
   reviewToEdit,
   onSubmitSuccess,
 }: ReviewModalProps) => {
+  // Existing code remains the same
   const [rating, setRating] = useState(reviewToEdit ? reviewToEdit.rating : 5);
   const [comment, setComment] = useState(
     reviewToEdit ? reviewToEdit.comment : ''
@@ -104,9 +108,18 @@ const ReviewModal = ({
       formData.append('comment', comment);
       formData.append('isAnonymous', isAnonymous.toString());
 
-      photos.forEach((photo) => {
-        formData.append('photos', photo);
-      });
+      // Log files before appending
+      console.log(
+        `Uploading ${photos.length} photos:`,
+        photos.map((photo) => `${photo.name} (${photo.size} bytes)`)
+      );
+
+      // Important: append each photo with the same field name 'photos'
+      if (photos.length > 0) {
+        photos.forEach((photo) => {
+          formData.append('photos', photo);
+        });
+      }
 
       let response;
 
@@ -333,7 +346,7 @@ const ReviewCard = ({
               key={index}
               className="flex-shrink-0 w-20 h-20 rounded-md overflow-hidden">
               <img
-                src={photo.startsWith('http') ? photo : `${API_URL}/${photo}`}
+                src={photo}
                 alt={`Review photo ${index + 1}`}
                 className="w-full h-full object-cover"
               />
@@ -364,7 +377,7 @@ const ReviewCard = ({
 };
 
 // Main ReviewArea Component
-const ReviewArea = ({ roomId }: ReviewAreaProps) => {
+const ReviewArea = ({ roomId, limitReviews = true }: ReviewAreaProps) => {
   const { user, isAuthenticated } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -465,6 +478,13 @@ const ReviewArea = ({ roomId }: ReviewAreaProps) => {
     setShowDeleteConfirm(null);
   };
 
+  // Determine which reviews to display (all or limited)
+  const displayedReviews =
+    limitReviews && reviews.length > 2 ? reviews.slice(0, 2) : reviews;
+
+  // Whether to show the View All button
+  const showViewAllButton = limitReviews && reviews.length > 2;
+
   return (
     <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8">
       <div className="flex justify-between items-center mb-6">
@@ -512,13 +532,13 @@ const ReviewArea = ({ roomId }: ReviewAreaProps) => {
         <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md">
           {error}
         </div>
-      ) : reviews.length === 0 ? (
+      ) : displayedReviews.length === 0 ? (
         <div className="py-6 text-center text-gray-500 dark:text-gray-400">
           No reviews yet for this room.
         </div>
       ) : (
         <div>
-          {reviews.map((review) => (
+          {displayedReviews.map((review) => (
             <div key={review._id}>
               <ReviewCard
                 review={review}
@@ -550,6 +570,17 @@ const ReviewArea = ({ roomId }: ReviewAreaProps) => {
               )}
             </div>
           ))}
+
+          {/* View All Reviews Button */}
+          {showViewAllButton && (
+            <div className="mt-4 text-center">
+              <Link
+                to={`/rooms/${roomId}/reviews`}
+                className="inline-flex items-center px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                View all {reviewCount} reviews <FaAngleRight className="ml-1" />
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

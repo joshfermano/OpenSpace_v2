@@ -54,8 +54,8 @@ const EmailSent = () => {
         throw new Error('User email not found. Please log in again.');
       }
 
-      // Use authApi instead of direct fetch
-      const response = await authApi.resendEmailVerification();
+      // Pass user's email to the resendEmailVerification function
+      const response = await authApi.resendEmailVerification(user.email);
       console.log('Resend OTP response:', response);
 
       if (response.success) {

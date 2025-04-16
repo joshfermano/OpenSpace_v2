@@ -1,5 +1,4 @@
 import { Request, Response, CookieOptions } from 'express';
-import { uploadImage } from '../services/imageService';
 import jwt from 'jsonwebtoken';
 import { sendPasswordResetEmail } from '../services/emailService';
 import crypto from 'crypto';
@@ -8,7 +7,6 @@ import OtpVerification from '../models/OtpVerification';
 import { sendVerificationEmail } from '../services/emailService';
 import mongoose from 'mongoose';
 import 'dotenv/config';
-import path from 'path';
 
 // Define a custom Request type that includes the user property
 type AuthRequest = Request;
@@ -16,14 +14,6 @@ type AuthRequest = Request;
 const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
-
-interface CustomCookieOptions extends CookieOptions {
-  sameSite: 'strict' | 'lax' | 'none' | boolean;
-  expires: Date;
-  httpOnly: boolean;
-  secure: boolean;
-  path: string;
-}
 
 function ensureAuthenticated(req: AuthRequest, res: Response): IUser | null {
   if (!req.user) {
@@ -60,7 +50,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('Request body:', req.body);
 
-    const { email, password, firstName, lastName, phoneNumber } = req.body;
+    const { email, password, firstName, lastName, phoneNumber, verifyPhone } =
+      req.body;
 
     // Validate required fields
     if (!email || !password || !firstName || !lastName) {
@@ -101,8 +92,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Create user data
-    const userData: any = {
+    const userData = {
       email,
       password,
       firstName,
@@ -112,48 +102,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       active: true,
       verificationLevel: 'basic',
       isEmailVerified: false,
-      isPhoneVerified: false, // This should be false initially
+      isPhoneVerified: verifyPhone === true ? true : false,
       isHostVerified: false,
-      savedRooms: [],
+      savedRooms: [] as mongoose.Types.ObjectId[],
     };
-
-    if (req.file) {
-      // Upload file to Supabase
-      const supabaseImageUrl = await uploadImage(
-        req.file.path,
-        'verifications',
-        `user-id-${Date.now()}-${path.basename(req.file.originalname)}`
-      );
-
-      if (supabaseImageUrl) {
-        userData.identificationDocument = {
-          idType: 'Passport',
-          idNumber: 'Pending Review',
-          idImage: supabaseImageUrl,
-          uploadDate: new Date(),
-          verificationStatus: 'pending',
-        };
-      } else {
-        console.error(
-          'Failed to upload ID to Supabase, using local path as fallback'
-        );
-        userData.identificationDocument = {
-          idType: 'Passport',
-          idNumber: 'Pending Review',
-          idImage: req.file.path, // Fallback to local path
-          uploadDate: new Date(),
-          verificationStatus: 'pending',
-        };
-      }
-    }
 
     const user = await User.create(userData);
 
-    // Generate JWT token
     const token = generateToken(user);
 
-    const cookieOptions: CustomCookieOptions = {
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    const cookieOptions: CookieOptions = {
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
@@ -163,18 +122,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const userResponse = user.toObject();
     delete userResponse.password;
 
-    // Send verification email
     await sendEmailVerificationOTP(user._id, user.email);
 
-    res
-      .status(201)
-      .cookie('token', token, cookieOptions as CookieOptions)
-      .json({
-        success: true,
-        message: 'Registration successful',
-        data: userResponse,
-        token,
-      });
+    res.status(201).cookie('token', token, cookieOptions).json({
+      success: true,
+      message: 'Registration successful',
+      data: userResponse,
+    });
   } catch (error: any) {
     console.error('Registration error:', error);
     res.status(500).json({
@@ -198,7 +152,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if account is active
     if (user.active === false) {
       res.status(403).json({
         success: false,
@@ -219,23 +172,27 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const token = generateToken(user);
 
     const cookieOptions: CookieOptions = {
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
     };
 
+    console.log(`Setting auth cookie for ${user.email}`, {
+      maxAge: cookieOptions.maxAge,
+      httpOnly: cookieOptions.httpOnly,
+      secure: cookieOptions.secure,
+      sameSite: cookieOptions.sameSite,
+    });
+
     const userResponse = user.toObject();
     delete userResponse.password;
-
-    console.log(`User logged in: ${user.email} with role: ${user.role}`);
 
     res.status(200).cookie('token', token, cookieOptions).json({
       success: true,
       message: 'Login successful',
       data: userResponse,
-      token, // Include token in response for localStorage
     });
   } catch (error: any) {
     console.error('Login error:', error);
@@ -248,17 +205,26 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const logout = (_req: Request, res: Response): void => {
-  res.cookie('token', 'none', {
-    expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-  });
+  try {
+    const cookieOptions: CookieOptions = {
+      maxAge: 0,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    };
 
-  res.status(200).json({
-    success: true,
-    message: 'Logged out successfully',
-  });
+    res.cookie('token', '', cookieOptions).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during logout',
+    });
+  }
 };
 
 export const getCurrentUser = async (
@@ -266,7 +232,10 @@ export const getCurrentUser = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.log('Getting current user...');
+
     if (!req.user) {
+      console.log('No user found in request');
       res.status(401).json({
         success: false,
         message: 'Not authenticated',
@@ -274,27 +243,27 @@ export const getCurrentUser = async (
       return;
     }
 
-    // Return a fresh copy of the user
-    const freshUser = await User.findById(req.user._id).select('-password');
+    // Refresh the token to extend the session
+    const token = generateToken(req.user);
 
-    if (!freshUser) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
+    const cookieOptions: CookieOptions = {
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    };
 
-    res.status(200).json({
+    // Return the user with a refreshed token
+    res.cookie('token', token, cookieOptions).json({
       success: true,
-      data: freshUser,
+      data: req.user,
     });
-  } catch (error: any) {
-    console.error('Error in getCurrentUser:', error);
+  } catch (error) {
+    console.error('Get current user error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching user data',
-      error: error.message,
+      message: 'Server error',
     });
   }
 };
@@ -558,7 +527,7 @@ export const verifyEmailWithOTP = async (
     const token = generateToken(user);
 
     const cookieOptions: CookieOptions = {
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',

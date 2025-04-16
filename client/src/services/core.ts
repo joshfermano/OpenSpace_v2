@@ -1,21 +1,18 @@
-export const API_URL =
-  process.env.NODE_ENV === 'production'
-    ? 'https://openspace-api.onrender.com'
-    : 'http://localhost:5000';
+const isDev = process.env.NODE_ENV !== 'production';
+
+export const API_URL = isDev
+  ? import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  : 'https://openspace-api.onrender.com';
+
+console.log(`Using API URL: ${API_URL}`);
 
 export const fetchWithAuth = async (
   endpoint: string,
   options: RequestInit = {}
 ) => {
-  const token = localStorage.getItem('token');
-
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
-
-  if (token) {
-    defaultHeaders['Authorization'] = `Bearer ${token}`;
-  }
 
   const config: RequestInit = {
     ...options,

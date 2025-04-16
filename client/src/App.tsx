@@ -21,6 +21,7 @@ import ForgotPasswordSent from './pages/Auth/ForgotPasswordSent';
 // Rooms
 import ViewAllListings from './pages/Room/ViewAllListings';
 import ViewAllFavorites from './pages/Room/ViewAllFavorites';
+import ViewAllRoomReviews from './pages/Room/ViewAllRoomReviews';
 
 // Dashboard Pages
 import EarningsDashboard from './pages/Dashboard/EarningsDashboard';
@@ -70,6 +71,7 @@ const router = createBrowserRouter(
         <Route index element={<Homepage />} />
         <Route path="about" element={<About />} />
         <Route path="rooms/:roomId" element={<ViewRoom />} />
+        <Route path="/rooms/:roomId/reviews" element={<ViewAllRoomReviews />} />
         <Route path="hosts/:hostId" element={<HostProfile />} />
         <Route path="become-host" element={<BecomeHost />} />
 

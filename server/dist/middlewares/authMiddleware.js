@@ -16,20 +16,19 @@ exports.hostOnly = exports.adminOnly = exports.authenticateJWT = exports.protect
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 require("dotenv/config");
-// The original protect middleware
 const protect = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         let token;
-        // Check for token in Authorization header
-        if (req.headers.authorization &&
+        console.log('Checking authentication...');
+        console.log('Cookies:', req.cookies);
+        if (req.cookies && req.cookies.token) {
+            token = req.cookies.token;
+            console.log('Token found in cookies');
+        }
+        else if (req.headers.authorization &&
             req.headers.authorization.startsWith('Bearer')) {
             token = req.headers.authorization.split(' ')[1];
             console.log('Token found in Authorization header');
-        }
-        // Also check in cookies
-        else if (req.cookies && req.cookies.token) {
-            token = req.cookies.token;
-            console.log('Token found in cookies');
         }
         if (!token) {
             console.log('No token found in request');
@@ -40,14 +39,12 @@ const protect = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
             return;
         }
         try {
-            // Verify token
             const secret = process.env.JWT_SECRET;
             if (!secret) {
                 throw new Error('JWT_SECRET is not defined in environment variables');
             }
             const decoded = jsonwebtoken_1.default.verify(token, secret);
             console.log('Token verified, user ID:', decoded.userId, 'role:', decoded.role);
-            // Find user by id
             const user = yield User_1.default.findById(decoded.userId).select('-password');
             if (!user) {
                 console.log('User not found for ID:', decoded.userId);
@@ -57,7 +54,6 @@ const protect = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
                 });
                 return;
             }
-            // Check if user is banned
             if (user.active === false) {
                 console.log('User is banned:', decoded.userId);
                 res.status(403).json({
@@ -66,11 +62,6 @@ const protect = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
                 });
                 return;
             }
-            // Make sure the role in the database matches the role in the token
-            if (user.role !== decoded.role) {
-                console.log('Role mismatch. Token:', decoded.role, 'DB:', user.role);
-            }
-            // Always use the role from the database
             req.user = user;
             next();
         }
@@ -92,52 +83,59 @@ const protect = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.protect = protect;
-// Add the authenticateJWT function that's being used in routes
 const authenticateJWT = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         let token;
-        // Check for token in Authorization header
-        if (req.headers.authorization &&
+        console.log('AUTH - Checking cookies:', req.cookies);
+        if (req.cookies && req.cookies.token) {
+            token = req.cookies.token;
+            console.log('AUTH - Token found in cookies');
+        }
+        else if (req.headers.authorization &&
             req.headers.authorization.startsWith('Bearer')) {
             token = req.headers.authorization.split(' ')[1];
-        }
-        // Also check in cookies
-        else if (req.cookies && req.cookies.token) {
-            token = req.cookies.token;
+            console.log('AUTH - Token found in Authorization header');
         }
         if (!token) {
+            console.log('AUTH - No token found in request');
             res.status(401).json({
                 success: false,
                 message: 'Authentication required',
             });
             return;
         }
-        // Verify token
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-            throw new Error('JWT_SECRET is not defined in environment variables');
+        try {
+            const secret = process.env.JWT_SECRET;
+            if (!secret) {
+                throw new Error('JWT_SECRET is not defined in environment variables');
+            }
+            const decoded = jsonwebtoken_1.default.verify(token, secret);
+            const user = yield User_1.default.findById(decoded.userId).select('-password');
+            if (!user) {
+                console.log('User not found with ID:', decoded.userId);
+                res.status(401).json({
+                    success: false,
+                    message: 'User not found',
+                });
+                return;
+            }
+            if (user.active === false) {
+                res.status(403).json({
+                    success: false,
+                    message: 'Your account has been deactivated',
+                });
+                return;
+            }
+            req.user = user;
+            next();
         }
-        const decoded = jsonwebtoken_1.default.verify(token, secret);
-        // Find user by id
-        const user = yield User_1.default.findById(decoded.userId).select('-password');
-        if (!user) {
+        catch (tokenError) {
+            console.error('JWT verification error:', tokenError);
             res.status(401).json({
                 success: false,
-                message: 'User not found',
+                message: 'Invalid or expired token',
             });
-            return;
         }
-        // Check if user is banned
-        if (user.active === false) {
-            res.status(403).json({
-                success: false,
-                message: 'Your account has been deactivated',
-            });
-            return;
-        }
-        // Attach user to request
-        req.user = user;
-        next();
     }
     catch (error) {
         console.error('JWT authentication error:', error);
@@ -168,7 +166,6 @@ const adminOnly = (req, res, next) => {
     }
 };
 exports.adminOnly = adminOnly;
-// Add hostOnly middleware for host-specific routes
 const hostOnly = (req, res, next) => {
     if (!req.user) {
         res.status(401).json({

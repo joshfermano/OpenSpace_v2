@@ -267,7 +267,7 @@ const PaymentConfirmation = () => {
 
         <div className="flex flex-col sm:flex-row justify-center gap-4">
           <Link
-            to="/dashboard/bookings"
+            to="/bookings/all"
             className="inline-flex items-center justify-center px-6 py-2.5 bg-darkBlue text-white dark:bg-light dark:text-darkBlue rounded-lg hover:opacity-90 transition-colors">
             View Your Bookings
           </Link>

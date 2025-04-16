@@ -15,7 +15,6 @@ const Register = () => {
     password: '',
     confirmPassword: '',
   });
-  const [governmentId, setGovernmentId] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState<boolean>(false);
@@ -23,7 +22,6 @@ const Register = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Form handlers
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -31,24 +29,38 @@ const Register = () => {
       [name]: value,
     }));
 
-    // Clear error when user types
     setError(null);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      setGovernmentId(files[0]);
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+
+    // Ensure it starts with 09
+    if (value.length > 0 && !value.startsWith('09')) {
+      if (value.startsWith('9')) {
+        value = '0' + value;
+      } else {
+        value = '09';
+      }
     }
+
+    if (value.length > 11) {
+      value = value.slice(0, 11);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      phoneNumber: value,
+    }));
+
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Don't allow multiple submissions
     if (isSubmitting) return;
 
-    // Validate form
     if (!passwordsMatch) {
       setError('Passwords do not match');
       return;
@@ -59,7 +71,6 @@ const Register = () => {
       return;
     }
 
-    // Validate password strength
     if (
       !passwordHasLength ||
       !passwordHasUppercase ||
@@ -70,34 +81,37 @@ const Register = () => {
       return;
     }
 
+    if (!/^09\d{9}$/.test(formData.phoneNumber)) {
+      setError('Please enter a valid Philippine mobile number (09XXXXXXXXX)');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // Create FormData
-      const formDataToSubmit = new FormData();
+      const userData = {
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phoneNumber: formData.phoneNumber,
+        verifyPhone: true,
+      };
 
-      // Add text fields
-      formDataToSubmit.append('email', formData.email);
-      formDataToSubmit.append('password', formData.password);
-      formDataToSubmit.append('firstName', formData.firstName);
-      formDataToSubmit.append('lastName', formData.lastName);
-      formDataToSubmit.append('phoneNumber', formData.phoneNumber);
+      console.log('Submitting registration data:', userData);
 
-      // Add government ID if provided
-      if (governmentId) {
-        formDataToSubmit.append('governmentId', governmentId);
-      }
+      const response = await register(userData);
 
-      const response = await register(formDataToSubmit);
+      console.log('Registration response:', response);
 
-      if (response.success) {
-        // Redirect to verification page
+      if (response && response.success) {
         navigate('/verification/email-verification');
       } else {
-        setError(response.message || 'Registration failed. Please try again.');
+        setError(response?.message || 'Registration failed. Please try again.');
       }
     } catch (error: any) {
+      console.error('Registration error:', error);
       setError(error.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -200,19 +214,22 @@ const Register = () => {
           <label
             htmlFor="phoneNumber"
             className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Phone
+            Phone Number
           </label>
           <input
             type="tel"
             name="phoneNumber"
             id="phoneNumber"
             value={formData.phoneNumber}
-            onChange={handleChange}
+            onChange={handlePhoneChange}
             className="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            placeholder="+63 917 000 0000"
+            placeholder="09XXXXXXXXX"
             disabled={isSubmitting}
             required
           />
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Enter a valid Philippine mobile number (e.g., 09XXXXXXXXX)
+          </p>
         </div>
 
         {/* Password */}
@@ -327,28 +344,6 @@ const Register = () => {
           {formData.confirmPassword && !passwordsMatch && (
             <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
           )}
-        </div>
-
-        {/* Government ID Upload (optional) */}
-        <div className="flex flex-col space-y-2">
-          <label
-            htmlFor="governmentId"
-            className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Government ID (Optional - for verification)
-          </label>
-          <input
-            type="file"
-            id="governmentId"
-            name="governmentId"
-            onChange={handleFileChange}
-            accept="image/*,.pdf"
-            className="w-full border border-gray-300 dark:border-gray-600 p-2 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            disabled={isSubmitting}
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Upload a photo of your valid ID to verify your account and gain
-            access to all features.
-          </p>
         </div>
 
         {/* Terms and Conditions */}

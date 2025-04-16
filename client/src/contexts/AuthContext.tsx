@@ -1,4 +1,10 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+} from 'react';
 import { authApi } from '../services/api';
 
 interface User {
@@ -23,7 +29,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<any>;
   logout: () => Promise<void>;
   register: (userData: any) => Promise<any>;
-  checkAuth: () => Promise<void>;
+  checkAuth: () => Promise<boolean>;
   refreshUser: () => Promise<void>;
   clearError: () => void;
   isVerified: () => boolean;
@@ -37,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   const clearError = () => setError(null);
 
@@ -49,38 +56,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   };
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async (): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('token');
+      console.log('Checking authentication status...');
 
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-
+      // Call the API which will check cookies
       const response = await authApi.getCurrentUser();
+      console.log('Auth check response:', response);
 
       if (response.success && response.data) {
         setUser(response.data);
         console.log('Successfully authenticated as:', response.data.role);
+        return true;
       } else {
-        setUser(null);
-        localStorage.removeItem('token');
+        console.log('Auth check failed with response:', response);
+        // Only clear user if it's a genuine authentication failure
+        if (response.status === 401) {
+          console.log('Clearing user due to auth failure');
+          setUser(null);
+        }
+        return false;
       }
     } catch (err) {
-      console.error('Auth check failed:', err);
-      setUser(null);
-      localStorage.removeItem('token');
+      console.error('Auth check failed with exception:', err);
+      // Don't clear user on network errors as it might be temporary
+      return false;
     } finally {
       setIsLoading(false);
+      setAuthChecked(true);
     }
-  };
-
-  useEffect(() => {
-    checkAuth();
   }, []);
+
+  // Initial authentication check when the component mounts
+  useEffect(() => {
+    const checkAuthOnMount = async () => {
+      console.log('Checking authentication on component mount');
+      await checkAuth();
+      console.log('Initial auth check completed');
+    };
+
+    checkAuthOnMount();
+  }, [checkAuth]);
+
+  // Periodic refresh to keep session alive
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      if (user) {
+        console.log('Refreshing authentication state...');
+        checkAuth();
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    return () => clearInterval(refreshInterval);
+  }, [user, checkAuth]);
+
+  // Refresh auth when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Tab became visible, checking auth...');
+        checkAuth();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkAuth]);
 
   const refreshUser = async () => {
     try {
@@ -108,9 +153,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const response = await authApi.login(email, password);
 
       if (response.success) {
-        if (response.token) {
-          localStorage.setItem('token', response.token);
-        }
         setUser(response.data);
         return response.data;
       } else {
@@ -130,7 +172,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       await authApi.logout();
       setUser(null);
-      localStorage.removeItem('token');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -142,19 +183,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       clearError();
       setIsLoading(true);
+
+      console.log('AuthContext - Registering user with data:', userData);
+
       const response = await authApi.register(userData);
 
       if (response.success) {
-        if (response.token) {
-          localStorage.setItem('token', response.token);
-        }
         setUser(response.data);
+        console.log('User data set in context:', response.data);
       } else {
         setError(response.message || 'Registration failed');
+        console.error('Registration failed:', response.message);
       }
 
       return response;
     } catch (error: any) {
+      console.error('Registration error in AuthContext:', error);
       setError(error.message || 'An error occurred during registration');
       throw error;
     } finally {
@@ -175,6 +219,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     clearError,
     isVerified,
   };
+
+  // Don't show loading indicator for subsequent auth checks
+  if (isLoading && !authChecked) {
+    return <div>Loading authentication state...</div>;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

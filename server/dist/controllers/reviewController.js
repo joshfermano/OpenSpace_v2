@@ -17,6 +17,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const Review_1 = __importDefault(require("../models/Review"));
 const Room_1 = __importDefault(require("../models/Room"));
 const Booking_1 = __importDefault(require("../models/Booking"));
+const imageService_1 = require("../services/imageService");
 // Create a new review
 const createReview = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -82,7 +83,13 @@ const createReview = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const photoFiles = req.files;
         let photosPaths = [];
         if (photoFiles && photoFiles.length > 0) {
-            photosPaths = photoFiles.map((file) => `uploads/reviews/${file.filename}`);
+            // Upload each file to Supabase instead of just storing local paths
+            const uploadPromises = photoFiles.map((file) => (0, imageService_1.uploadImage)(file.path, 'reviews'));
+            // Wait for all uploads to complete
+            const uploadedUrls = yield Promise.all(uploadPromises);
+            // Filter out any null results (failed uploads)
+            photosPaths = uploadedUrls.filter((url) => url !== null);
+            console.log('Uploaded review photos:', photosPaths);
         }
         // Create the review
         const review = yield Review_1.default.create({
@@ -424,7 +431,7 @@ const updateReview = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     try {
         const { reviewId } = req.params;
         const userId = req.user.id;
-        const { rating, comment, photos, isAnonymous } = req.body;
+        const { rating, comment, isAnonymous } = req.body;
         // Find review
         const review = yield Review_1.default.findById(reviewId);
         if (!review) {
@@ -450,13 +457,25 @@ const updateReview = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             });
             return;
         }
+        // Handle photo uploads
+        const photoFiles = req.files;
+        let photosPaths = [];
+        if (photoFiles && photoFiles.length > 0) {
+            // Upload each file to Supabase
+            const uploadPromises = photoFiles.map((file) => (0, imageService_1.uploadImage)(file.path, 'reviews'));
+            // Wait for all uploads to complete
+            const uploadedUrls = yield Promise.all(uploadPromises);
+            // Filter out any null results (failed uploads)
+            photosPaths = uploadedUrls.filter((url) => url !== null);
+            console.log('Updated review photos:', photosPaths);
+            // Update photos field
+            review.photos = photosPaths;
+        }
         // Update review fields
         if (rating !== undefined)
             review.rating = rating;
         if (comment !== undefined)
             review.comment = comment;
-        if (photos !== undefined)
-            review.photos = photos;
         if (isAnonymous !== undefined)
             review.isAnonymous = isAnonymous;
         // Save updated review

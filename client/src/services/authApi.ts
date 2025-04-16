@@ -8,12 +8,9 @@ export const authApi = {
       let headers = {};
       let requestBody;
 
-      // Check if userData is FormData
       if (userData instanceof FormData) {
-        // Don't set Content-Type header - the browser will set it with the boundary
         requestBody = userData;
       } else {
-        // If it's JSON data
         headers = {
           'Content-Type': 'application/json',
         };
@@ -67,8 +64,9 @@ export const authApi = {
 
   logout: async () => {
     try {
-      const response = await fetchWithAuth('/api/auth/logout', {
+      const response = await fetch(`${API_URL}/api/auth/logout`, {
         method: 'GET',
+        credentials: 'include',
       });
 
       const data = await response.json();
@@ -85,30 +83,57 @@ export const authApi = {
   getCurrentUser: async () => {
     try {
       console.log('Fetching current user data...');
-      const response = await fetchWithAuth('/api/auth/me');
+
+      const requestUrl = `${API_URL}/api/auth/me`;
+      console.log(`Sending request to: ${requestUrl}`);
+
+      const response = await fetch(requestUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+        },
+      });
 
       console.log('Current user response status:', response.status);
+      console.log('Response headers:', [...response.headers.entries()]);
+
+      // Log cookies if available in the browser
+      console.log('Current cookies:', document.cookie);
 
       if (!response.ok) {
+        if (response.status === 401) {
+          const errorText = await response.text();
+          console.error('Auth error from /api/auth/me:', errorText);
+
+          return {
+            success: false,
+            status: 401,
+            message: 'User session expired or invalid',
+          };
+        }
+
         const errorText = await response.text();
         console.error('Error response from /api/auth/me:', errorText);
 
         return {
           success: false,
-          message:
-            response.status === 401
-              ? 'User session expired or invalid'
-              : `Server error: ${response.status} ${response.statusText}`,
+          status: response.status,
+          message: `Server error: ${response.status} ${response.statusText}`,
+          isAuthError: false,
         };
       }
 
       const data = await response.json();
-      console.log('Current user data retrieved successfully');
+      console.log('Current user data retrieved successfully:', data);
       return data;
     } catch (error) {
       console.error('Get current user error:', error);
       return {
         success: false,
+        isAuthError: false,
         message:
           error instanceof Error
             ? error.message
@@ -117,7 +142,6 @@ export const authApi = {
     }
   },
 
-  // Email verification
   initiateEmailVerification: async (email: string) => {
     try {
       const response = await fetchWithAuth(
@@ -138,32 +162,16 @@ export const authApi = {
     }
   },
 
-  resendEmailVerification: async () => {
+  resendEmailVerification: async (email: string) => {
     try {
       console.log('Resending email verification OTP...');
 
-      // Get user info from context, not localStorage
-      const token = localStorage.getItem('token');
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const email = user?.email;
-
-      if (!email) {
-        return {
-          success: false,
-          message: 'No user email found. Please log in again.',
-        };
-      }
-
-      console.log(`Attempting to resend verification to: ${email}`);
-
-      // Use the /send endpoint which is properly configured as public
       const response = await fetch(
         `${API_URL}/api/auth/email-verification/send`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : '',
           },
           credentials: 'include',
           body: JSON.stringify({ email }),
@@ -216,11 +224,10 @@ export const authApi = {
     }
   },
 
-  verifyEmailWithOTP: async (otp: string) => {
+  // FIXED: removed localStorage references and using credentials:include
+  verifyEmailWithOTP: async (otp: string, email?: string) => {
     try {
       console.log('Verifying email with OTP:', otp);
-      const token = localStorage.getItem('token');
-      const email = JSON.parse(localStorage.getItem('user') || '{}')?.email;
 
       const response = await fetch(
         `${API_URL}/api/auth/email-verification/verify`,
@@ -228,7 +235,6 @@ export const authApi = {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : '',
           },
           credentials: 'include',
           body: JSON.stringify({ otp, email }),
@@ -445,7 +451,9 @@ export const authApi = {
   // Initial admin setup
   checkAdminExists: async () => {
     try {
-      const response = await fetch(`${API_URL}/api/admin/check-admin-exists`);
+      const response = await fetch(`${API_URL}/api/admin/check-admin-exists`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       return data;
     } catch (error) {
@@ -462,6 +470,7 @@ export const authApi = {
     try {
       const response = await fetch(`${API_URL}/api/admin/initial-admin-setup`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

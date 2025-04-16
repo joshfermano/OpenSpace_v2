@@ -1,7 +1,6 @@
 import { API_URL, fetchWithAuth } from './core';
 
 export const reviewApi = {
-  // Get all reviews for a room
   getRoomReviews: async (roomId: string) => {
     try {
       const response = await fetchWithAuth(`/api/reviews/room/${roomId}`);
@@ -34,15 +33,33 @@ export const reviewApi = {
     }
   },
 
-  // Create a new review
   createReview: async (reviewData: FormData) => {
     try {
-      const response = await fetch(`${API_URL}/api/reviews`, {
+      // Get the roomId value without removing it from FormData
+      const roomId = reviewData.get('roomId');
+
+      // Log the FormData contents for debugging
+      console.log(
+        'Files in FormData:',
+        Array.from(reviewData.getAll('photos')).map((file) =>
+          file instanceof File ? `${file.name} (${file.size} bytes)` : file
+        )
+      );
+
+      // Use the correct endpoint pattern that matches the server route
+      const response = await fetch(`${API_URL}/api/reviews/room/${roomId}`, {
         method: 'POST',
         credentials: 'include',
-        body: reviewData,
-        // Don't set Content-Type header - it will be set automatically for FormData
+        body: reviewData, // Send complete FormData with files
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error(
+          `Server error: ${response.status} ${response.statusText}`
+        );
+      }
 
       const data = await response.json();
       return data;

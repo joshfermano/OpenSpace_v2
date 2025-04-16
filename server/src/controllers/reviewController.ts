@@ -4,6 +4,7 @@ import Review from '../models/Review';
 import Room from '../models/Room';
 import Booking from '../models/Booking';
 import {} from '../models/User';
+import { uploadImage } from '../services/imageService';
 
 // Define a custom Request type that includes the user property
 type AuthRequest = Request;
@@ -99,9 +100,18 @@ export const createReview = async (
     let photosPaths: string[] = [];
 
     if (photoFiles && photoFiles.length > 0) {
-      photosPaths = photoFiles.map(
-        (file) => `uploads/reviews/${file.filename}`
+      // Upload each file to Supabase instead of just storing local paths
+      const uploadPromises = photoFiles.map((file) =>
+        uploadImage(file.path, 'reviews')
       );
+
+      // Wait for all uploads to complete
+      const uploadedUrls = await Promise.all(uploadPromises);
+
+      // Filter out any null results (failed uploads)
+      photosPaths = uploadedUrls.filter((url) => url !== null) as string[];
+
+      console.log('Uploaded review photos:', photosPaths);
     }
 
     // Create the review
@@ -497,7 +507,7 @@ export const updateReview = async (
   try {
     const { reviewId } = req.params;
     const userId = req.user.id;
-    const { rating, comment, photos, isAnonymous } = req.body;
+    const { rating, comment, isAnonymous } = req.body;
 
     // Find review
     const review = await Review.findById(reviewId);
@@ -527,10 +537,31 @@ export const updateReview = async (
       return;
     }
 
+    // Handle photo uploads
+    const photoFiles = req.files as Express.Multer.File[];
+    let photosPaths: string[] = [];
+
+    if (photoFiles && photoFiles.length > 0) {
+      // Upload each file to Supabase
+      const uploadPromises = photoFiles.map((file) =>
+        uploadImage(file.path, 'reviews')
+      );
+
+      // Wait for all uploads to complete
+      const uploadedUrls = await Promise.all(uploadPromises);
+
+      // Filter out any null results (failed uploads)
+      photosPaths = uploadedUrls.filter((url) => url !== null) as string[];
+
+      console.log('Updated review photos:', photosPaths);
+
+      // Update photos field
+      review.photos = photosPaths;
+    }
+
     // Update review fields
     if (rating !== undefined) review.rating = rating;
     if (comment !== undefined) review.comment = comment;
-    if (photos !== undefined) review.photos = photos;
     if (isAnonymous !== undefined) review.isAnonymous = isAnonymous;
 
     // Save updated review

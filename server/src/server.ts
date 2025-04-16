@@ -1,4 +1,10 @@
-import express from 'express';
+import express, {
+  CookieOptions,
+  Request,
+  Response,
+  NextFunction,
+} from 'express';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { checkSupabaseConnection } from './config/supabase';
 import { initializeStorage } from './services/imageService';
@@ -22,37 +28,60 @@ import adminEarningsRoutes from './routes/adminEarningsRoutes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://openspace-reserve.vercel.app',
-  process.env.CLIENT_URL,
-].filter(Boolean);
+const corsOptions = {
+  origin:
+    process.env.NODE_ENV === 'production'
+      ? [
+          /\.vercel\.app$/,
+          'https://openspace-reserve.vercel.app',
+          process.env.CLIENT_URL,
+        ].filter(Boolean)
+      : ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Cache-Control',
+    'Pragma',
+  ],
+  exposedHeaders: ['set-cookie'],
+};
 
-app.use(
-  cors({
-    origin: function (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean) => void
-    ) {
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
-        return callback(new Error(msg), false);
-      }
-      return callback(null, true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  })
-);
+app.use(cors(corsOptions));
+app.use(cookieParser());
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../uploads')));
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const originalCookie = res.cookie.bind(res);
+
+  res.cookie = function (name: string, val: any, options?: CookieOptions) {
+    const cookieOptions: CookieOptions = {
+      sameSite:
+        process.env.NODE_ENV === 'production'
+          ? ('none' as const)
+          : ('lax' as const),
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      ...options,
+    };
+
+    console.log(`Setting cookie: ${name}`, cookieOptions);
+
+    // Call original method with our enhanced options
+    return originalCookie(name, val, cookieOptions);
+  } as typeof res.cookie;
+
+  next();
+});
 
 // API routes
 app.use('/api/admin', adminRoutes);
@@ -99,7 +128,6 @@ const startServer = async () => {
     await mongoose.connect(process.env.MONGO_URL);
     console.log('Connected to MongoDB');
 
-    // Check Supabase connection and initialize storage
     if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
       await checkSupabaseConnection();
       await initializeStorage();

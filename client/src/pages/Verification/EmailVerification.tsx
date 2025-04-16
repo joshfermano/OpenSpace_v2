@@ -93,7 +93,7 @@ const EmailVerification = () => {
   };
 
   const handleResendVerificationEmail = async () => {
-    if (!user) return;
+    if (!user || !user.email) return;
 
     setLoading(true);
     setMessage({
@@ -105,8 +105,8 @@ const EmailVerification = () => {
       // Increment retry count
       setRetryCount((prev) => prev + 1);
 
-      // Use the resend endpoint for subsequent sends
-      const response = await authApi.resendEmailVerification();
+      // Use the resend endpoint for subsequent sends - pass user's email
+      const response = await authApi.resendEmailVerification(user.email);
 
       if (response.success) {
         setMessage({

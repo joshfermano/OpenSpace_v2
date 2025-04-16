@@ -13,7 +13,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updatePassword = exports.resetPassword = exports.validateResetToken = exports.requestPasswordReset = exports.becomeHost = exports.uploadIdVerification = exports.verifyPhoneWithOTP = exports.initiatePhoneVerification = exports.sendPhoneVerificationOTP = exports.verifyEmailWithOTP = exports.resendEmailVerification = exports.initiateEmailVerification = exports.sendEmailVerificationOTP = exports.getCurrentUser = exports.logout = exports.login = exports.register = void 0;
-const imageService_1 = require("../services/imageService");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const emailService_1 = require("../services/emailService");
 const crypto_1 = __importDefault(require("crypto"));
@@ -22,7 +21,6 @@ const OtpVerification_1 = __importDefault(require("../models/OtpVerification"));
 const emailService_2 = require("../services/emailService");
 const mongoose_1 = __importDefault(require("mongoose"));
 require("dotenv/config");
-const path_1 = __importDefault(require("path"));
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -52,7 +50,7 @@ const generateToken = (user) => {
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log('Request body:', req.body);
-        const { email, password, firstName, lastName, phoneNumber } = req.body;
+        const { email, password, firstName, lastName, phoneNumber, verifyPhone } = req.body;
         // Validate required fields
         if (!email || !password || !firstName || !lastName) {
             res.status(400).json({
@@ -87,7 +85,6 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             });
             return;
         }
-        // Create user data
         const userData = {
             email,
             password,
@@ -98,38 +95,14 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             active: true,
             verificationLevel: 'basic',
             isEmailVerified: false,
-            isPhoneVerified: false, // This should be false initially
+            isPhoneVerified: verifyPhone === true ? true : false,
             isHostVerified: false,
             savedRooms: [],
         };
-        if (req.file) {
-            // Upload file to Supabase
-            const supabaseImageUrl = yield (0, imageService_1.uploadImage)(req.file.path, 'verifications', `user-id-${Date.now()}-${path_1.default.basename(req.file.originalname)}`);
-            if (supabaseImageUrl) {
-                userData.identificationDocument = {
-                    idType: 'Passport',
-                    idNumber: 'Pending Review',
-                    idImage: supabaseImageUrl,
-                    uploadDate: new Date(),
-                    verificationStatus: 'pending',
-                };
-            }
-            else {
-                console.error('Failed to upload ID to Supabase, using local path as fallback');
-                userData.identificationDocument = {
-                    idType: 'Passport',
-                    idNumber: 'Pending Review',
-                    idImage: req.file.path, // Fallback to local path
-                    uploadDate: new Date(),
-                    verificationStatus: 'pending',
-                };
-            }
-        }
         const user = yield User_1.default.create(userData);
-        // Generate JWT token
         const token = generateToken(user);
         const cookieOptions = {
-            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
@@ -137,16 +110,11 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         };
         const userResponse = user.toObject();
         delete userResponse.password;
-        // Send verification email
         yield (0, exports.sendEmailVerificationOTP)(user._id, user.email);
-        res
-            .status(201)
-            .cookie('token', token, cookieOptions)
-            .json({
+        res.status(201).cookie('token', token, cookieOptions).json({
             success: true,
             message: 'Registration successful',
             data: userResponse,
-            token,
         });
     }
     catch (error) {
@@ -170,7 +138,6 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             });
             return;
         }
-        // Check if account is active
         if (user.active === false) {
             res.status(403).json({
                 success: false,
@@ -188,20 +155,24 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         }
         const token = generateToken(user);
         const cookieOptions = {
-            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             path: '/',
         };
+        console.log(`Setting auth cookie for ${user.email}`, {
+            maxAge: cookieOptions.maxAge,
+            httpOnly: cookieOptions.httpOnly,
+            secure: cookieOptions.secure,
+            sameSite: cookieOptions.sameSite,
+        });
         const userResponse = user.toObject();
         delete userResponse.password;
-        console.log(`User logged in: ${user.email} with role: ${user.role}`);
         res.status(200).cookie('token', token, cookieOptions).json({
             success: true,
             message: 'Login successful',
             data: userResponse,
-            token, // Include token in response for localStorage
         });
     }
     catch (error) {
@@ -215,47 +186,59 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
 });
 exports.login = login;
 const logout = (_req, res) => {
-    res.cookie('token', 'none', {
-        expires: new Date(Date.now() + 10 * 1000),
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    });
-    res.status(200).json({
-        success: true,
-        message: 'Logged out successfully',
-    });
+    try {
+        const cookieOptions = {
+            maxAge: 0,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
+        };
+        res.cookie('token', '', cookieOptions).json({
+            success: true,
+            message: 'Logged out successfully',
+        });
+    }
+    catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during logout',
+        });
+    }
 };
 exports.logout = logout;
 const getCurrentUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        console.log('Getting current user...');
         if (!req.user) {
+            console.log('No user found in request');
             res.status(401).json({
                 success: false,
                 message: 'Not authenticated',
             });
             return;
         }
-        // Return a fresh copy of the user
-        const freshUser = yield User_1.default.findById(req.user._id).select('-password');
-        if (!freshUser) {
-            res.status(404).json({
-                success: false,
-                message: 'User not found',
-            });
-            return;
-        }
-        res.status(200).json({
+        // Refresh the token to extend the session
+        const token = generateToken(req.user);
+        const cookieOptions = {
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/',
+        };
+        // Return the user with a refreshed token
+        res.cookie('token', token, cookieOptions).json({
             success: true,
-            data: freshUser,
+            data: req.user,
         });
     }
     catch (error) {
-        console.error('Error in getCurrentUser:', error);
+        console.error('Get current user error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error fetching user data',
-            error: error.message,
+            message: 'Server error',
         });
     }
 });
@@ -473,7 +456,7 @@ const verifyEmailWithOTP = (req, res) => __awaiter(void 0, void 0, void 0, funct
         yield OtpVerification_1.default.deleteOne({ _id: otpRecord._id });
         const token = generateToken(user);
         const cookieOptions = {
-            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
