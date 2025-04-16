@@ -8,7 +8,7 @@ import {
   FiArrowLeft,
   FiRefreshCw,
 } from 'react-icons/fi';
-import { authApi } from '../../services/api';
+import { emailApi } from '../../services/api';
 
 const EmailVerification = () => {
   const { user, refreshUser } = useAuth();
@@ -56,7 +56,7 @@ const EmailVerification = () => {
 
     try {
       // Call API to send verification OTP (initial send)
-      const response = await authApi.sendEmailVerificationOTP();
+      const response = await emailApi.sendEmailVerificationOTP();
 
       if (response.success) {
         setMessage({
@@ -106,7 +106,7 @@ const EmailVerification = () => {
       setRetryCount((prev) => prev + 1);
 
       // Use the resend endpoint for subsequent sends - pass user's email
-      const response = await authApi.resendEmailVerification(user.email);
+      const response = await emailApi.resendEmailVerification(user.email);
 
       if (response.success) {
         setMessage({
@@ -148,7 +148,7 @@ const EmailVerification = () => {
     setVerifying(true);
     try {
       // Call your API to verify the OTP
-      const response = await authApi.verifyEmailWithOTP(otp);
+      const response = await emailApi.verifyEmailWithOTP(otp, user.email);
 
       if (response.success) {
         setMessage({

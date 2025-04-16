@@ -7,7 +7,7 @@ import {
   FiCheckCircle,
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
-import { authApi } from '../../services/api';
+import { emailApi } from '../../services/api';
 
 const EmailSent = () => {
   const { user, refreshUser } = useAuth();
@@ -55,7 +55,7 @@ const EmailSent = () => {
       }
 
       // Pass user's email to the resendEmailVerification function
-      const response = await authApi.resendEmailVerification(user.email);
+      const response = await emailApi.resendEmailVerification(user.email);
       console.log('Resend OTP response:', response);
 
       if (response.success) {
@@ -98,7 +98,8 @@ const EmailSent = () => {
 
     try {
       console.log('Sending OTP verification request with code:', otp);
-      const response = await authApi.verifyEmailWithOTP(otp);
+      // Pass the email with the OTP to help server validation
+      const response = await emailApi.verifyEmailWithOTP(otp, user?.email);
       console.log('OTP verification response:', response);
 
       if (response.success) {

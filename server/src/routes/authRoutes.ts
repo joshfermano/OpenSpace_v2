@@ -54,59 +54,8 @@ router.post('/forgot-password', authController.requestPasswordReset);
 router.post('/reset-password', authController.resetPassword);
 router.get('/validate-reset-token/:token', authController.validateResetToken);
 
-// Email verification - PUBLIC routes
-router.post('/email-verification/verify', (req, res) =>
-  authController.verifyEmailWithOTP(req, res)
-);
-
-router.post('/email-verification/send', (req: Request, res: Response) => {
-  // Extract email from the request body
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email is required',
-    });
-  }
-
-  // Get the user ID if available - this route may be used by non-authenticated users
-  const userId = req.user?._id || null;
-
-  authController
-    .sendEmailVerificationOTP(userId, email)
-    .then((success) => {
-      if (success) {
-        res.status(200).json({
-          success: true,
-          message: 'Verification email sent successfully',
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Failed to send verification email',
-        });
-      }
-    })
-    .catch((error) => {
-      console.error('Error sending verification email:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error sending verification email',
-      });
-    });
-});
-
-router.post('/email-verification/resend', (req, res) =>
-  authController.resendEmailVerification(req, res)
-);
-
 // ===== Protected routes (require authentication) =====
 router.use(protect);
-
-// Email verification (authenticated)
-router.post('/email-verification/initiate', (req, res) =>
-  authController.initiateEmailVerification(req, res)
-);
 
 // Phone verification (authenticated)
 router.post('/phone-verification/initiate', (req, res) =>

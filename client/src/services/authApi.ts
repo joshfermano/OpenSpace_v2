@@ -142,56 +142,6 @@ export const authApi = {
     }
   },
 
-  initiateEmailVerification: async (email: string) => {
-    try {
-      const response = await fetchWithAuth(
-        '/api/auth/email-verification/initiate',
-        {
-          method: 'POST',
-          body: JSON.stringify({ email }),
-        }
-      );
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error initiating email verification:', error);
-      return {
-        success: false,
-        message: 'Network error while initiating email verification',
-      };
-    }
-  },
-
-  resendEmailVerification: async (email: string) => {
-    try {
-      console.log('Resending email verification OTP...');
-
-      const response = await fetch(
-        `${API_URL}/api/auth/email-verification/send`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ email }),
-        }
-      );
-
-      console.log('Resend OTP request status:', response.status);
-      const data = await response.json();
-      console.log('Resend OTP response data:', data);
-
-      return data;
-    } catch (error) {
-      console.error('Error resending email verification:', error);
-      return {
-        success: false,
-        message: 'Network error while resending verification email',
-      };
-    }
-  },
-
   updatePassword: async (passwordData: {
     currentPassword: string;
     newPassword: string;
@@ -224,38 +174,6 @@ export const authApi = {
     }
   },
 
-  // FIXED: removed localStorage references and using credentials:include
-  verifyEmailWithOTP: async (otp: string, email?: string) => {
-    try {
-      console.log('Verifying email with OTP:', otp);
-
-      const response = await fetch(
-        `${API_URL}/api/auth/email-verification/verify`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ otp, email }),
-        }
-      );
-
-      console.log('Verify OTP request status:', response.status);
-      const data = await response.json();
-      console.log('Verify OTP response data:', data);
-
-      return data;
-    } catch (error) {
-      console.error('Error verifying email:', error);
-      return {
-        success: false,
-        message: 'Network error while verifying email',
-      };
-    }
-  },
-
-  // Phone verification
   initiatePhoneVerification: async (phoneNumber: string) => {
     try {
       const response = await fetchWithAuth(
@@ -397,53 +315,6 @@ export const authApi = {
       return {
         success: false,
         message: 'Network error while processing host request',
-      };
-    }
-  },
-
-  // For email verification troubleshooting
-  sendEmailVerificationOTP: async () => {
-    try {
-      console.log('Requesting email verification OTP...');
-      const response = await fetchWithAuth('/api/email-verification/send-otp', {
-        method: 'POST',
-      });
-
-      console.log('OTP request status:', response.status);
-      const data = await response.json();
-      console.log('OTP response data:', data);
-
-      return data;
-    } catch (error) {
-      console.error('Error requesting email verification:', error);
-      return {
-        success: false,
-        message: 'Network error while requesting verification email',
-      };
-    }
-  },
-
-  testEmail: async (email: string) => {
-    try {
-      console.log(`Testing email delivery to: ${email}`);
-      const response = await fetchWithAuth(
-        '/api/email-verification/test-email',
-        {
-          method: 'POST',
-          body: JSON.stringify({ email }),
-        }
-      );
-
-      console.log('Test email response status:', response.status);
-      const data = await response.json();
-      console.log('Test email response data:', data);
-
-      return data;
-    } catch (error) {
-      console.error('Error testing email:', error);
-      return {
-        success: false,
-        message: 'Error testing email delivery',
       };
     }
   },

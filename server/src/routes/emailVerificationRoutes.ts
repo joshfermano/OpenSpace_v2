@@ -5,18 +5,18 @@ import {
   verifyEmailWithOTP,
   testEmailDelivery,
   resendEmailVerification,
+  sendVerificationByEmail,
 } from '../controllers/emailVerificationController';
 
 const router: Router = express.Router();
 
-// Test email route (for troubleshooting only)
+// Public routes (no authentication required)
 router.post('/test-email', testEmailDelivery);
+router.post('/send-email', sendVerificationByEmail); // For non-authenticated users
+router.post('/verify-otp', verifyEmailWithOTP); // Works for both auth and non-auth
+router.post('/resend-otp', resendEmailVerification); // Works for both auth and non-auth
 
 // Protected routes (require authentication)
-router.use(protect);
-
 router.post('/send-otp', protect, sendEmailVerificationOTP);
-router.post('/verify-otp', protect, verifyEmailWithOTP);
-router.post('/resend-otp', protect, resendEmailVerification);
 
 export default router;

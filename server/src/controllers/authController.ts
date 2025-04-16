@@ -8,12 +8,7 @@ import { sendVerificationEmail } from '../services/emailService';
 import mongoose from 'mongoose';
 import 'dotenv/config';
 
-// Define a custom Request type that includes the user property
 type AuthRequest = Request;
-
-const generateOTP = (): string => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
 
 function ensureAuthenticated(req: AuthRequest, res: Response): IUser | null {
   if (!req.user) {
@@ -122,7 +117,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const userResponse = user.toObject();
     delete userResponse.password;
 
-    await sendEmailVerificationOTP(user._id, user.email);
+    // Send verification email with OTP
+    await sendInitialVerificationEmail(user._id, user.email, user.firstName);
 
     res.status(201).cookie('token', token, cookieOptions).json({
       success: true,
@@ -268,10 +264,11 @@ export const getCurrentUser = async (
   }
 };
 
-// Send email verification OTP
-export const sendEmailVerificationOTP = async (
+// Export a function to trigger email verification after registration
+export const sendInitialVerificationEmail = async (
   userId: mongoose.Types.ObjectId,
-  email: string
+  email: string,
+  firstName: string
 ): Promise<boolean> => {
   try {
     // Generate 6-digit OTP
@@ -293,261 +290,12 @@ export const sendEmailVerificationOTP = async (
     });
 
     // Send verification email
-    await sendVerificationEmail(email, otp, otp);
+    await sendVerificationEmail(email, firstName, otp);
 
     return true;
   } catch (error) {
-    console.error('Error sending email verification OTP:', error);
+    console.error('Error sending initial email verification OTP:', error);
     return false;
-  }
-};
-
-// Initiate email verification
-export const initiateEmailVerification = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const currentUser = ensureAuthenticated(req, res);
-    if (!currentUser) return;
-
-    const userId = new mongoose.Types.ObjectId(currentUser._id);
-    const { email } = req.body;
-
-    if (!email) {
-      res.status(400).json({
-        success: false,
-        message: 'Email is required',
-      });
-      return;
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
-
-    // If email is different from current email, update it
-    if (email !== user.email) {
-      user.email = email;
-      user.isEmailVerified = false;
-      await user.save();
-    }
-
-    // Send OTP
-    const result = await sendEmailVerificationOTP(userId, email);
-
-    if (result) {
-      res.status(200).json({
-        success: true,
-        message: 'Verification OTP sent to email',
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to send verification OTP',
-      });
-    }
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error initiating email verification',
-      error: error.message,
-    });
-  }
-};
-
-export const resendEmailVerification = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    // If we have a logged-in user, use their details
-    if (req.user) {
-      const userId = new mongoose.Types.ObjectId(req.user._id);
-      const email = req.user.email;
-
-      const result = await sendEmailVerificationOTP(userId, email);
-
-      if (result) {
-        res.status(200).json({
-          success: true,
-          message: 'Verification OTP sent to email',
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Failed to send verification OTP',
-        });
-      }
-      return;
-    }
-
-    // For cases where we don't have a logged-in user but have the email in the request
-    const { email } = req.body;
-
-    if (!email) {
-      res.status(400).json({
-        success: false,
-        message: 'Email is required for unauthenticated verification',
-      });
-      return;
-    }
-
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found with this email',
-      });
-      return;
-    }
-
-    // Check if email is already verified
-    if (user.isEmailVerified) {
-      res.status(400).json({
-        success: false,
-        message: 'Email is already verified',
-      });
-      return;
-    }
-
-    // Generate OTP
-    const otp = generateOTP();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15); // OTP expires in 15 minutes
-
-    // Store OTP in database
-    await OtpVerification.findOneAndUpdate(
-      { user: user._id, type: 'email' },
-      {
-        otp,
-        expiresAt,
-      },
-      { upsert: true, new: true }
-    );
-
-    const sendOtpVerificationEmail = async (
-      email: string,
-      firstName: string,
-      otp: string
-    ): Promise<boolean> => {
-      try {
-        await sendVerificationEmail(email, firstName, otp);
-        return true;
-      } catch (error) {
-        console.error('Error sending verification email:', error);
-        return false;
-      }
-    };
-
-    // Send verification email with OTP
-    await sendOtpVerificationEmail(user.email, user.firstName, otp);
-
-    res.status(200).json({
-      success: true,
-      message: 'Verification OTP resent successfully',
-    });
-  } catch (error: any) {
-    console.error('Resend email verification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to resend verification OTP',
-      error: error.message,
-    });
-  }
-};
-
-// Verify email with OTP
-export const verifyEmailWithOTP = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'Not authenticated',
-      });
-      return;
-    }
-
-    const { otp } = req.body;
-
-    if (!otp) {
-      res.status(400).json({
-        success: false,
-        message: 'OTP is required',
-      });
-      return;
-    }
-
-    const otpRecord = await OtpVerification.findOne({
-      otp,
-      type: 'email',
-    });
-
-    if (!otpRecord) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid OTP',
-      });
-      return;
-    }
-
-    if (otpRecord.expiresAt < new Date()) {
-      await OtpVerification.deleteOne({ _id: otpRecord._id });
-      res.status(400).json({
-        success: false,
-        message: 'OTP has expired, please request a new one',
-      });
-      return;
-    }
-
-    const user = await User.findById(otpRecord.user);
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-      return;
-    }
-
-    user.isEmailVerified = true;
-    await user.save();
-
-    await OtpVerification.deleteOne({ _id: otpRecord._id });
-
-    const token = generateToken(user);
-
-    const cookieOptions: CookieOptions = {
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/',
-    };
-
-    res.cookie('token', token, cookieOptions);
-
-    res.status(200).json({
-      success: true,
-      message: 'Email verified successfully',
-      token,
-    });
-  } catch (error: any) {
-    console.error('Error verifying email:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying email',
-      error: error.message,
-    });
   }
 };
 
