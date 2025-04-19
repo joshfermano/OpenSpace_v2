@@ -219,16 +219,19 @@ export const getRoomById = async (
       return;
     }
 
-    if (
-      (!room.isPublished || room.status !== 'approved') &&
-      req.user.role !== 'admin' &&
-      room.host._id.toString() !== req.user.id
-    ) {
-      res.status(403).json({
-        success: false,
-        message: 'This room is not available for viewing',
-      });
-      return;
+    // Check if the user is authenticated
+    const isAuthenticated = req.user && req.user.id;
+    const isAdmin = isAuthenticated && req.user.role === 'admin';
+    const isOwner = isAuthenticated && room.host._id.toString() === req.user.id;
+
+    if (!room.isPublished || room.status !== 'approved') {
+      if (!isAuthenticated || (!isAdmin && !isOwner)) {
+        res.status(403).json({
+          success: false,
+          message: 'This room is not available for viewing',
+        });
+        return;
+      }
     }
 
     res.status(200).json({
@@ -657,7 +660,6 @@ export const approveRejectRoom = async (
   }
 };
 
-// Get room availability
 export const getRoomAvailability = async (
   req: Request,
   res: Response
@@ -665,6 +667,10 @@ export const getRoomAvailability = async (
   try {
     const { roomId } = req.params;
     const { startDate, endDate } = req.query;
+
+    console.log(
+      `[Server] Fetching availability for room ${roomId} from ${startDate} to ${endDate}`
+    );
 
     // Validate dates
     if (!startDate || !endDate) {
@@ -677,6 +683,10 @@ export const getRoomAvailability = async (
 
     const start = new Date(startDate as string);
     const end = new Date(endDate as string);
+
+    // Set hours to midnight for consistent comparison
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       res.status(400).json({
@@ -696,50 +706,130 @@ export const getRoomAvailability = async (
       return;
     }
 
-    // Check if requested dates are within room's availability
-    if (
-      start < room.availability.startDate ||
-      end > room.availability.endDate
-    ) {
-      res.status(400).json({
-        success: false,
-        message: 'Requested dates are outside of room availability',
-      });
-      return;
+    // Check if room is published and accessible
+    if (!room.isPublished || room.status !== 'approved') {
+      const isAuthenticated = req.user && req.user.id;
+      const isAdmin = isAuthenticated && req.user.role === 'admin';
+      const isOwner = isAuthenticated && room.host.toString() === req.user.id;
+
+      if (!isAuthenticated || (!isAdmin && !isOwner)) {
+        res.status(403).json({
+          success: false,
+          message: 'This room is not available for viewing',
+        });
+        return;
+      }
     }
 
-    // Check if any unavailable dates are within the requested range
-    const unavailableDatesInRange = room.availability.unavailableDates.filter(
-      (date) => date >= start && date <= end
-    );
-
-    // Check if there are any existing bookings for the dates
+    // Improved booking query to find all bookings that overlap with the date range
+    // Only exclude cancelled and rejected bookings
     const existingBookings = await Booking.find({
       room: roomId,
-      bookingStatus: { $in: ['pending', 'confirmed'] },
+      bookingStatus: { $nin: ['cancelled', 'rejected'] },
       $or: [
-        {
-          // Check if booking overlaps with requested dates
-          $and: [{ checkIn: { $lte: end } }, { checkOut: { $gte: start } }],
-        },
+        // Find all bookings that overlap with the requested date range
+        { $and: [{ checkIn: { $lte: end } }, { checkOut: { $gte: start } }] },
       ],
+    }).select(
+      '_id checkIn checkOut checkInTime checkOutTime user bookingStatus paymentStatus'
+    );
+
+    console.log(
+      `[Server] Found ${existingBookings.length} bookings for room ${roomId}`
+    );
+
+    // Log each booking for debugging
+    existingBookings.forEach((booking, index) => {
+      console.log(
+        `[Server] Booking ${index + 1}: ID=${booking._id}, Status=${
+          booking.bookingStatus
+        }, Check-in=${booking.checkIn.toISOString().split('T')[0]}, Check-out=${
+          booking.checkOut.toISOString().split('T')[0]
+        }`
+      );
     });
 
-    const isAvailable =
-      unavailableDatesInRange.length === 0 && existingBookings.length === 0;
+    const hostBlockedDates = room.availability.unavailableDates || [];
+
+    // Normalize host-blocked dates to midnight
+    const normalizedHostBlockedDates = hostBlockedDates.map((date) => {
+      const normalizedDate = new Date(date);
+      normalizedDate.setHours(0, 0, 0, 0);
+      return normalizedDate;
+    });
+
+    // Combine all unavailable dates for THIS SPECIFIC ROOM ONLY
+    let allUnavailableDates = [...normalizedHostBlockedDates];
+
+    // Add dates from existing bookings for THIS ROOM ONLY
+    existingBookings.forEach((booking) => {
+      const bookingStart = new Date(booking.checkIn);
+      const bookingEnd = new Date(booking.checkOut);
+
+      // Set hours to midnight for date comparison
+      bookingStart.setHours(0, 0, 0, 0);
+      bookingEnd.setHours(0, 0, 0, 0);
+
+      // Add all dates between start and end (inclusive)
+      let currentDate = new Date(bookingStart);
+      while (currentDate <= bookingEnd) {
+        // Check for duplicate dates before adding
+        const isDuplicate = allUnavailableDates.some(
+          (date) =>
+            date.getFullYear() === currentDate.getFullYear() &&
+            date.getMonth() === currentDate.getMonth() &&
+            date.getDate() === currentDate.getDate()
+        );
+
+        if (!isDuplicate) {
+          allUnavailableDates.push(new Date(currentDate));
+          console.log(
+            `[Server] Added date ${
+              currentDate.toISOString().split('T')[0]
+            } as unavailable from booking ID=${booking._id}`
+          );
+        }
+
+        // Move to next day
+        const nextDate = new Date(currentDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+        currentDate = nextDate;
+      }
+    });
+
+    // Format times in 12-hour format for the client and ensure roomId is included
+    const formattedBookings = existingBookings.map((booking) => {
+      const formattedBooking = {
+        _id: booking._id,
+        roomId: roomId, // Explicitly add roomId to each booking
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        checkInTime: convertTo12HourFormat(booking.checkInTime || '14:00'),
+        checkOutTime: convertTo12HourFormat(booking.checkOutTime || '12:00'),
+        userId: booking.user, // Include the user ID for identity checking
+        bookingStatus: booking.bookingStatus,
+        paymentStatus: booking.paymentStatus,
+      };
+      return formattedBooking;
+    });
+
+    console.log(
+      `[Server] Returning ${allUnavailableDates.length} unavailable dates for room ${roomId}`
+    );
 
     res.status(200).json({
       success: true,
       data: {
-        isAvailable,
-        unavailableDatesInRange,
-        existingBookings: existingBookings.map((booking) => ({
-          checkIn: booking.checkIn,
-          checkOut: booking.checkOut,
-        })),
+        roomId: roomId,
+        unavailableDates: allUnavailableDates,
+        existingBookings: formattedBookings,
       },
     });
   } catch (error: any) {
+    console.error(
+      `[Server] Error in getRoomAvailability for room ${req.params.roomId}:`,
+      error
+    );
     res.status(500).json({
       success: false,
       message: 'Error checking room availability',
@@ -748,7 +838,33 @@ export const getRoomAvailability = async (
   }
 };
 
-// Update room availability
+// Helper function to convert 24-hour time format to 12-hour format
+function convertTo12HourFormat(time: string): string {
+  // If already in 12-hour format (contains AM/PM), return as is
+  if (time.includes('AM') || time.includes('PM')) {
+    return time;
+  }
+
+  try {
+    // Convert from 24h to 12h format
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours, 10);
+
+    if (hour === 0) {
+      return `12:${minutes} AM`;
+    } else if (hour < 12) {
+      return `${hour}:${minutes} AM`;
+    } else if (hour === 12) {
+      return `12:${minutes} PM`;
+    } else {
+      return `${hour - 12}:${minutes} PM`;
+    }
+  } catch (error) {
+    console.error('Error converting time format:', error);
+    return time; // Return original if conversion fails
+  }
+}
+
 export const updateRoomAvailability = async (
   req: AuthRequest,
   res: Response

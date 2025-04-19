@@ -4,11 +4,13 @@ import {
   createRoutesFromElements,
   RouterProvider,
 } from 'react-router-dom';
+import { useEffect } from 'react';
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { initPageLifecycleEvents } from './utils/pageLifecycle';
 
 // Bookings
 import ViewBooking from './pages/Bookings/viewBooking';
@@ -252,6 +254,12 @@ const router = createBrowserRouter(
 );
 
 const App = () => {
+  // Initialize page lifecycle events to prevent unexpected refreshes
+  useEffect(() => {
+    const cleanup = initPageLifecycleEvents();
+    return cleanup;
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>

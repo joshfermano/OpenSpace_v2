@@ -27,7 +27,6 @@ import { bookingApi } from '../../services/bookingApi';
 import logo_black from '../../assets/logo_black.jpg';
 import CancelBookingModal from '../../components/Bookings/CancelBookingModal';
 
-// Convert time from 24-hour format to 12-hour format
 const convertTo12Hour = (time24: string) => {
   if (!time24) return '';
 

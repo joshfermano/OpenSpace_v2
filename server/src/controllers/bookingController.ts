@@ -5,7 +5,6 @@ import Room from '../models/Room';
 import User from '../models/User';
 import Earning from '../models/Earnings';
 
-// Define a custom Request type that includes the user property
 type AuthRequest = Request;
 
 export const getAllBookings = async (
@@ -162,28 +161,24 @@ export const createBooking = async (
       roomId,
       checkIn,
       checkOut,
-      checkInTime, // Extract check-in time from request
-      checkOutTime, // Extract check-out time from request
+      checkInTime,
+      checkOutTime,
       guests,
       totalPrice,
       priceBreakdown,
-      paymentMethod,
       specialRequests,
+      paymentMethod,
     } = req.body;
 
-    console.log('Creating booking with data:', req.body);
+    // Convert times to 24-hour format for storage
+    const normalizedCheckInTime = convertTo24HourFormat(
+      checkInTime || '2:00 PM'
+    );
+    const normalizedCheckOutTime = convertTo24HourFormat(
+      checkOutTime || '12:00 PM'
+    );
 
-    // Validate required fields
-    if (!roomId || !checkIn || !checkOut || !guests || !totalPrice) {
-      res.status(400).json({
-        success: false,
-        message: 'Missing required booking information',
-        details: { roomId, checkIn, checkOut, guests, totalPrice },
-      });
-      return;
-    }
-
-    // Find the room
+    // Check if room exists
     const room = await Room.findById(roomId);
     if (!room) {
       res.status(404).json({
@@ -193,48 +188,118 @@ export const createBooking = async (
       return;
     }
 
-    // Convert dates to Date objects
+    // Check if dates are available
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
 
-    // Determine proper check-in and check-out times based on room type
-    // For 'stay' type, use the room's defined times
-    // For 'conference' and 'event', use the user-selected times
-    let finalCheckInTime = room.houseRules.checkInTime; // Default from room
-    let finalCheckOutTime = room.houseRules.checkOutTime; // Default from room
+    // Normalize dates for comparison by setting time to midnight
+    checkInDate.setHours(0, 0, 0, 0);
+    checkOutDate.setHours(0, 0, 0, 0);
 
-    if (room.type !== 'stay') {
-      // For conference and event types, use the times provided in the request
-      if (checkInTime) finalCheckInTime = checkInTime;
-      if (checkOutTime) finalCheckOutTime = checkOutTime;
+    // Check if dates are valid
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid date format',
+      });
+      return;
     }
 
-    // Create the booking with proper times
-    const booking = await Booking.create({
+    if (checkInDate > checkOutDate) {
+      res.status(400).json({
+        success: false,
+        message: 'Check-in date must be before check-out date',
+      });
+      return;
+    }
+
+    // Check for overlapping bookings
+    const existingBookings = await Booking.find({
+      room: roomId,
+      bookingStatus: { $in: ['pending', 'confirmed'] },
+      $or: [
+        {
+          $and: [
+            { checkIn: { $lte: checkOutDate } },
+            { checkOut: { $gte: checkInDate } },
+          ],
+        },
+      ],
+    });
+
+    if (existingBookings.length > 0) {
+      res.status(409).json({
+        success: false,
+        message: 'Selected dates are not available',
+        overlappingBookings: existingBookings.map((booking) => ({
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        })),
+      });
+      return;
+    }
+
+    // Check if the dates are blocked by the host
+    let currentDate = new Date(checkInDate);
+    while (currentDate <= checkOutDate) {
+      const isBlocked = room.availability.unavailableDates.some(
+        (blockedDate) => {
+          const date = new Date(blockedDate);
+          date.setHours(0, 0, 0, 0);
+          return (
+            date.getFullYear() === currentDate.getFullYear() &&
+            date.getMonth() === currentDate.getMonth() &&
+            date.getDate() === currentDate.getDate()
+          );
+        }
+      );
+
+      if (isBlocked) {
+        res.status(409).json({
+          success: false,
+          message: `Date ${
+            currentDate.toISOString().split('T')[0]
+          } is not available`,
+        });
+        return;
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Calculate cancellation deadline (24 hours before check-in)
+    const cancellationDeadline = new Date(checkInDate);
+    cancellationDeadline.setHours(cancellationDeadline.getHours() - 24);
+
+    const bookingData = {
       room: roomId,
       user: userId,
       host: room.host,
       checkIn: checkInDate,
       checkOut: checkOutDate,
-      checkInTime: finalCheckInTime, // Save the determined check-in time
-      checkOutTime: finalCheckOutTime, // Save the determined check-out time
-      guests: {
-        adults: Number(guests),
-      },
+      checkInTime: normalizedCheckInTime,
+      checkOutTime: normalizedCheckOutTime,
+      guests,
       totalPrice,
-      priceBreakdown: priceBreakdown || {
-        basePrice: totalPrice,
-      },
-      paymentStatus: 'pending',
-      paymentMethod: paymentMethod || 'property',
-      bookingStatus: 'pending',
+      priceBreakdown,
       specialRequests,
-    });
+      paymentMethod: paymentMethod || 'property',
+      paymentStatus: 'pending',
+      bookingStatus: 'pending',
+      cancellationDeadline,
+      isCancellable: new Date() < cancellationDeadline,
+    };
+
+    const newBooking = await Booking.create(bookingData);
 
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
-      data: booking,
+      data: {
+        ...newBooking.toObject(),
+        checkInTime: convertTo12HourFormat(normalizedCheckInTime),
+        checkOutTime: convertTo12HourFormat(normalizedCheckOutTime),
+      },
     });
   } catch (error: any) {
     console.error('Error creating booking:', error);
@@ -245,6 +310,59 @@ export const createBooking = async (
     });
   }
 };
+
+// Helper function to convert 12-hour time format to 24-hour format
+function convertTo24HourFormat(time: string): string {
+  // If already in 24-hour format (no AM/PM), return as is
+  if (!time.includes('AM') && !time.includes('PM')) {
+    return time;
+  }
+
+  try {
+    const isPM = time.toUpperCase().includes('PM');
+    const timeWithoutAmPm = time.replace(/am|pm/i, '').trim();
+    const [hoursStr, minutes] = timeWithoutAmPm.split(':');
+    let hours = parseInt(hoursStr, 10);
+
+    if (isPM && hours !== 12) {
+      hours += 12;
+    } else if (!isPM && hours === 12) {
+      hours = 0;
+    }
+
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  } catch (error) {
+    console.error('Error converting time format:', error);
+    return time; // Return original if conversion fails
+  }
+}
+
+// Helper function to convert 24-hour time format to 12-hour format
+function convertTo12HourFormat(time: string): string {
+  // If already in 12-hour format (contains AM/PM), return as is
+  if (time.includes('AM') || time.includes('PM')) {
+    return time;
+  }
+
+  try {
+    // Convert from 24h to 12h format
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours, 10);
+
+    if (hour === 0) {
+      return `12:${minutes} AM`;
+    } else if (hour < 12) {
+      return `${hour}:${minutes} AM`;
+    } else if (hour === 12) {
+      return `12:${minutes} PM`;
+    } else {
+      return `${hour - 12}:${minutes} PM`;
+    }
+  } catch (error) {
+    console.error('Error converting time format:', error);
+    return time; // Return original if conversion fails
+  }
+}
 
 export const processPayment = async (
   req: AuthRequest,
@@ -439,12 +557,10 @@ export const processPayment = async (
   }
 };
 
-// Simple card validation helper function
 const simpleCardValidation = (cardNumber: string): boolean => {
   // Remove spaces and dashes
   const cleanedNumber = cardNumber.replace(/[\s-]/g, '');
 
-  // Check if it's numeric and 16 digits
   if (!/^\d{16}$/.test(cleanedNumber)) {
     return false;
   }
@@ -453,7 +569,6 @@ const simpleCardValidation = (cardNumber: string): boolean => {
   let sum = 0;
   let isEven = false;
 
-  // Loop through values starting from the rightmost one
   for (let i = cleanedNumber.length - 1; i >= 0; i--) {
     let digit = parseInt(cleanedNumber.charAt(i));
 
@@ -484,15 +599,11 @@ const createEarningRecord = async (booking: any): Promise<any> => {
     let status = 'pending';
     let availableDate = new Date();
 
-    // Different logic based on payment method
     if (['card', 'gcash', 'maya'].includes(booking.paymentMethod)) {
-      // For online payments (card, gcash, maya), earnings become immediately available
       status = 'available';
       availableDate = new Date(); // Available immediately
     } else if (booking.paymentMethod === 'property') {
-      // For pay at property, it remains pending until host marks booking as completed
       status = 'pending';
-      // Set to far future as placeholder (will be updated when completed)
       availableDate = new Date();
       availableDate.setFullYear(availableDate.getFullYear() + 1);
     }

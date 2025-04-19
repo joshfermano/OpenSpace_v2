@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiCalendar, FiClock } from 'react-icons/fi';
+import { FiCalendar, FiClock, FiAlertCircle } from 'react-icons/fi';
 import Calendar from 'react-calendar';
 import TimeSelector from './TimeSelector';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 interface BookingPanelProps {
   room: any;
   roomId: string;
   isAuthenticated: boolean;
   unavailableDates: Date[];
+  existingBookings: any[];
+  userBookings?: any[];
 }
 
 const BookingPanel = ({
@@ -17,6 +20,8 @@ const BookingPanel = ({
   roomId,
   isAuthenticated,
   unavailableDates,
+  existingBookings,
+  userBookings = [],
 }: BookingPanelProps) => {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
@@ -34,6 +39,12 @@ const BookingPanel = ({
     serviceFee: 0,
     total: 0,
   });
+  const [allUnavailableDates, setAllUnavailableDates] = useState<Date[]>([]);
+  const [isDateRangeConflicting, setIsDateRangeConflicting] = useState(false);
+
+  // Ref to track if dates have been processed to prevent disappearing on re-renders
+  const datesProcessedRef = useRef(false);
+  const calendarKey = useRef(`calendar-${roomId}-${Date.now()}`);
 
   // Time options for checkin/checkout
   const timeOptions = [
@@ -55,28 +66,303 @@ const BookingPanel = ({
     '10:00 PM',
   ];
 
-  // Set initial times based on room type when component mounts
+  // Helper to normalize dates for comparison - using only year, month, and day
+  const normalizeDate = (date: Date): string => {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      console.error('Invalid date provided to normalizeDate', date);
+      return '';
+    }
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  // Convert 24-hour time format to 12-hour format
+  const convertTo12HourFormat = (time: string): string => {
+    // If already in 12-hour format (contains AM/PM), return as is
+    if (time.includes('AM') || time.includes('PM')) {
+      return time;
+    }
+
+    // Convert from 24h to 12h format
+    try {
+      const [hours, minutes] = time.split(':');
+      const hour = parseInt(hours, 10);
+
+      if (hour === 0) {
+        return `12:${minutes} AM`;
+      } else if (hour < 12) {
+        return `${hour}:${minutes} AM`;
+      } else if (hour === 12) {
+        return `12:${minutes} PM`;
+      } else {
+        return `${hour - 12}:${minutes} PM`;
+      }
+    } catch (error) {
+      console.error('Error converting time format:', error);
+      return time; // Return original if conversion fails
+    }
+  };
+
+  // Process existing bookings and unavailable dates - run with a stable dependency array
+  useEffect(() => {
+    // Don't process if we've already done it and have unavailable dates,
+    // UNLESS the unavailableDates or existingBookings props have changed
+    const existingBookingsCount = existingBookings?.length || 0;
+    const unavailableDatesCount = unavailableDates?.length || 0;
+
+    // Check if the data has changed since the last processing
+    const dataChanged =
+      existingBookingsCount !== 0 ||
+      unavailableDatesCount !== 0 ||
+      allUnavailableDates.length === 0;
+
+    if (
+      datesProcessedRef.current &&
+      allUnavailableDates.length > 0 &&
+      !dataChanged
+    ) {
+      console.log('[BookingPanel] Dates already processed, skipping');
+      return;
+    }
+
+    console.log('[BookingPanel] Processing availability data');
+    const combinedUnavailableDates: Date[] = [];
+
+    // First add host-blocked dates from unavailableDates prop
+    if (unavailableDates && unavailableDates.length > 0) {
+      console.log(`Processing ${unavailableDates.length} host-blocked dates`);
+      unavailableDates.forEach((date) => {
+        if (date instanceof Date && !isNaN(date.getTime())) {
+          const normalizedDate = new Date(date);
+          normalizedDate.setHours(0, 0, 0, 0);
+          combinedUnavailableDates.push(normalizedDate);
+        } else if (typeof date === 'string') {
+          // Handle string dates too
+          const parsedDate = new Date(date);
+          if (!isNaN(parsedDate.getTime())) {
+            parsedDate.setHours(0, 0, 0, 0);
+            combinedUnavailableDates.push(parsedDate);
+          }
+        }
+      });
+      console.log(
+        `Added ${combinedUnavailableDates.length} host-blocked dates to unavailable dates`
+      );
+    }
+
+    // Process ALL existing bookings to mark them as unavailable
+    console.log('Processing existing bookings:', existingBookings);
+    if (existingBookings && existingBookings.length > 0) {
+      let bookingDatesCount = 0;
+      existingBookings.forEach((booking) => {
+        // Skip if booking doesn't have required data
+        if (!booking || !booking.checkIn || !booking.checkOut) {
+          console.warn('Skipping invalid booking:', booking);
+          return;
+        }
+
+        // Skip if booking has a roomId that doesn't match current room
+        if (booking.roomId && booking.roomId !== roomId) {
+          console.log(`Skipping booking for different room: ${booking.roomId}`);
+          return;
+        }
+
+        let startDate, endDate;
+
+        // Parse check-in date
+        if (booking.checkIn instanceof Date) {
+          startDate = new Date(booking.checkIn);
+        } else if (typeof booking.checkIn === 'string') {
+          startDate = new Date(booking.checkIn);
+        }
+
+        // Parse check-out date
+        if (booking.checkOut instanceof Date) {
+          endDate = new Date(booking.checkOut);
+        } else if (typeof booking.checkOut === 'string') {
+          endDate = new Date(booking.checkOut);
+        }
+
+        // Make sure dates are valid
+        if (
+          !startDate ||
+          !endDate ||
+          isNaN(startDate.getTime()) ||
+          isNaN(endDate.getTime())
+        ) {
+          console.error('Invalid booking dates', booking);
+          return;
+        }
+
+        // Normalize dates for comparison (midnight)
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+
+        console.log(
+          `Processing booking ID=${booking._id}: ${normalizeDate(
+            startDate
+          )} to ${normalizeDate(endDate)}, Status=${
+            booking.bookingStatus || 'unknown'
+          }`
+        );
+
+        // Add each day in the date range to unavailable dates
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dateStr = normalizeDate(currentDate);
+          bookingDatesCount++;
+
+          // Check if this date is already in our unavailable dates
+          const alreadyExists = combinedUnavailableDates.some(
+            (d) => normalizeDate(d) === dateStr
+          );
+
+          if (!alreadyExists) {
+            // Mark this date as unavailable for all users
+            const unavailableDate = new Date(currentDate);
+            unavailableDate.setHours(0, 0, 0, 0);
+            combinedUnavailableDates.push(unavailableDate);
+            console.log(
+              `Added date ${dateStr} as unavailable from booking ID=${booking._id}`
+            );
+          } else {
+            console.log(
+              `Date ${dateStr} already marked as unavailable, skipping`
+            );
+          }
+
+          // Move to next day - create a new Date object to avoid reference issues
+          const nextDate = new Date(currentDate);
+          nextDate.setDate(nextDate.getDate() + 1);
+          currentDate.setTime(nextDate.getTime());
+        }
+      });
+      console.log(
+        `Processed ${existingBookings.length} bookings with ${bookingDatesCount} total booking dates`
+      );
+    }
+
+    // Process user's own bookings for UI distinction
+    if (userBookings && userBookings.length > 0) {
+      userBookings.forEach((booking) => {
+        // Skip if booking doesn't have required data
+        if (!booking || !booking.checkIn || !booking.checkOut) {
+          return;
+        }
+
+        // Skip if booking has a roomId that doesn't match current room
+        if (booking.roomId && booking.roomId !== roomId) {
+          return;
+        }
+
+        let startDate, endDate;
+
+        // Parse check-in date
+        if (booking.checkIn instanceof Date) {
+          startDate = new Date(booking.checkIn);
+        } else if (typeof booking.checkIn === 'string') {
+          startDate = new Date(booking.checkIn);
+        }
+
+        // Parse check-out date
+        if (booking.checkOut instanceof Date) {
+          endDate = new Date(booking.checkOut);
+        } else if (typeof booking.checkOut === 'string') {
+          endDate = new Date(booking.checkOut);
+        }
+
+        // Make sure dates are valid
+        if (
+          !startDate ||
+          !endDate ||
+          isNaN(startDate.getTime()) ||
+          isNaN(endDate.getTime())
+        ) {
+          console.error('Invalid user booking dates', booking);
+          return;
+        }
+
+        // Normalize dates for comparison (midnight)
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+
+        console.log(
+          `Processing user booking: ${normalizeDate(
+            startDate
+          )} to ${normalizeDate(endDate)}`
+        );
+      });
+    }
+
+    // Debug output all dates
+    console.log(
+      `Room ${roomId} - All unavailable dates (${combinedUnavailableDates.length}):`,
+      combinedUnavailableDates.map((d) => normalizeDate(d))
+    );
+
+    // Update state with combined dates
+    if (combinedUnavailableDates.length > 0) {
+      setAllUnavailableDates([...combinedUnavailableDates]);
+      // Mark dates as processed to prevent re-processing on refresh
+      datesProcessedRef.current = true;
+    }
+  }, [unavailableDates, existingBookings, roomId, userBookings]);
+
+  // Set initial times based on room type
   useEffect(() => {
     if (room) {
       if (room.type === 'stay') {
-        // For Room Stay, use the host's specified check in/out times
-        setCheckInTime(room.houseRules?.checkInTime || '2:00 PM');
-        setCheckOutTime(room.houseRules?.checkOutTime || '12:00 PM');
+        const checkInTimeValue = room.houseRules?.checkInTime || '14:00';
+        const checkOutTimeValue = room.houseRules?.checkOutTime || '12:00';
+
+        setCheckInTime(convertTo12HourFormat(checkInTimeValue));
+        setCheckOutTime(convertTo12HourFormat(checkOutTimeValue));
       } else if (room.type === 'conference') {
-        // For Conference Room, set default but allow user selection
         setCheckInTime('8:00 AM');
         setCheckOutTime('5:00 PM');
       } else if (room.type === 'event') {
-        // For Events Place, set default but allow user selection
         setCheckInTime('10:00 AM');
         setCheckOutTime('10:00 PM');
       }
     }
   }, [room]);
 
+  // Check if selected date range conflicts with unavailable dates
+  useEffect(() => {
+    if (dateRange[0] && dateRange[1]) {
+      const startDate = new Date(dateRange[0]);
+      const endDate = new Date(dateRange[1]);
+
+      let hasConflict = false;
+      const currentDate = new Date(startDate);
+
+      while (currentDate <= endDate) {
+        if (isDateUnavailable(currentDate)) {
+          hasConflict = true;
+          break;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      setIsDateRangeConflicting(hasConflict);
+
+      if (hasConflict) {
+        toast.warning(
+          'Your selected dates include unavailable days. Please choose different dates.',
+          {
+            autoClose: 5000,
+            position: 'top-center',
+          }
+        );
+      }
+    }
+  }, [dateRange, allUnavailableDates]);
+
   // Calculate booking details when date range changes
   useEffect(() => {
-    if (dateRange[0] && dateRange[1] && room) {
+    if (dateRange[0] && dateRange[1] && room && !isDateRangeConflicting) {
       const startDate = dateRange[0];
       const endDate = dateRange[1];
       const differenceInTime = endDate.getTime() - startDate.getTime();
@@ -84,14 +370,11 @@ const BookingPanel = ({
 
       let subtotal = room.price?.basePrice || 0;
 
-      // Calculate based on room type
       if (room.type === 'stay') {
         subtotal = subtotal * differenceInDays;
       } else if (room.type === 'conference') {
-        // For conference rooms, price is per day
         subtotal = subtotal * differenceInDays;
       } else if (room.type === 'event') {
-        // For events, price is per event (fixed)
         subtotal = subtotal;
       }
 
@@ -105,66 +388,273 @@ const BookingPanel = ({
         total,
       });
     }
-  }, [dateRange, room]);
+  }, [dateRange, room, isDateRangeConflicting]);
 
-  // Check if the room type allows time selection
+  useEffect(() => {
+    console.log(
+      'Bookings or availability updated, recalculating unavailable dates'
+    );
+
+    if (dateRange[0] && dateRange[1]) {
+      const hasNewConflict = checkDateRangeForConflicts(
+        dateRange[0],
+        dateRange[1]
+      );
+
+      if (hasNewConflict) {
+        setIsDateRangeConflicting(true);
+        toast.warning(
+          'Your selected dates now include unavailable days. Please choose different dates.',
+          {
+            autoClose: 5000,
+            position: 'top-center',
+          }
+        );
+      }
+    }
+  }, [existingBookings, unavailableDates]);
+
+  useEffect(() => {
+    if (dateRange[0] && dateRange[1]) {
+      const recheckedConflict = checkDateRangeForConflicts(
+        dateRange[0],
+        dateRange[1]
+      );
+
+      if (recheckedConflict) {
+        toast.warning(
+          'These dates are no longer available, please select different dates.',
+          { autoClose: 5000, position: 'top-center' }
+        );
+        setDateRange([null, null]);
+      }
+    }
+  }, [allUnavailableDates, dateRange]);
+
+  // Reset date selection if new bookings are received that conflict with current selection
+  useEffect(() => {
+    if (dateRange[0] && dateRange[1]) {
+      // Check if the updated unavailable dates create conflicts with current selection
+      const hasConflict = checkDateRangeForConflicts(
+        dateRange[0],
+        dateRange[1]
+      );
+
+      if (hasConflict) {
+        console.log(
+          'Date selection reset due to conflicts with new unavailable dates'
+        );
+        toast.warning(
+          'Your selected dates are no longer available. Please choose different dates.',
+          {
+            autoClose: 5000,
+            position: 'top-center',
+          }
+        );
+        setDateRange([null, null]);
+        setIsDateRangeConflicting(false);
+      }
+    }
+  }, [allUnavailableDates]); // Only run this effect when allUnavailableDates changes
+
+  const checkDateRangeForConflicts = (
+    startDate: Date,
+    endDate: Date
+  ): boolean => {
+    if (!startDate || !endDate) return false;
+
+    // Normalize the dates
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+
+    // Check each date in the range against allUnavailableDates
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+      // Create a normalized string representation for comparison
+      const currentDateStr = normalizeDate(currentDate);
+
+      // Check if the current date exists in allUnavailableDates
+      const isUnavailable = allUnavailableDates.some((unavailableDate) => {
+        // Skip invalid dates
+        if (
+          !unavailableDate ||
+          !(unavailableDate instanceof Date) ||
+          isNaN(unavailableDate.getTime())
+        ) {
+          return false;
+        }
+
+        return normalizeDate(unavailableDate) === currentDateStr;
+      });
+
+      if (isUnavailable) {
+        console.log(`Date conflict found: ${currentDateStr} is unavailable`);
+        return true; // Conflict found
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return false; // No conflicts found
+  };
+
+  // Check if room type allows time selection
   const allowsTimeSelection = () => {
     if (!room) return false;
     return room.type === 'conference' || room.type === 'event';
   };
 
-  // Disable past dates, today, and unavailable dates
-  const tileDisabled = ({ date, view }: { date: Date; view: string }) => {
-    // Disable dates in month and year view
+  // Check if a specific date is unavailable
+  const isDateUnavailable = (date: Date): boolean => {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return false;
+    }
+
+    // Create a copy of the date and set to midnight for comparison
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+
+    // Convert to consistent string format for comparison
+    const normalizeDateStr = normalizeDate(compareDate);
+
+    // Check if the date is in the unavailable dates list
+    return allUnavailableDates.some((unavailableDate) => {
+      if (
+        !unavailableDate ||
+        !(unavailableDate instanceof Date) ||
+        isNaN(unavailableDate.getTime())
+      ) {
+        return false;
+      }
+
+      const unavailableDateStr = normalizeDate(unavailableDate);
+      return unavailableDateStr === normalizeDateStr;
+    });
+  };
+
+  const tileClassName = ({ date, view }: { date: Date; view: string }) => {
+    if (view !== 'month') return '';
+
+    const classes = [];
+
+    // Use the same approach as isDateUnavailable to check unavailable dates
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    const normalizeDateStr = normalizeDate(compareDate);
+
+    // Check if the date is unavailable using the normalized date string
+    const isUnavailable = allUnavailableDates.some((unavailableDate) => {
+      if (
+        !unavailableDate ||
+        !(unavailableDate instanceof Date) ||
+        isNaN(unavailableDate.getTime())
+      ) {
+        return false;
+      }
+      return normalizeDate(unavailableDate) === normalizeDateStr;
+    });
+
+    if (isUnavailable) {
+      classes.push('unavailable-date');
+    }
+
+    // Set additional class for past dates
+    if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
+      classes.push('past-date');
+    }
+
+    // Add class for user-booked dates if it's booked by the current user
+    if (isDateBookedByUser(date)) {
+      classes.push('user-booked-date');
+    }
+
+    return classes.join(' ');
+  };
+
+  const isDateBookedByUser = (date: Date): boolean => {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return false;
+    }
+    if (!userBookings || userBookings.length === 0 || !isAuthenticated) {
+      return false;
+    }
+
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    const normalizeDateStr = normalizeDate(compareDate);
+
+    // Check if the date exists in any of the user's bookings for this room
+    return userBookings.some((booking) => {
+      if (!booking.checkIn || !booking.checkOut || booking.roomId !== roomId) {
+        return false;
+      }
+
+      const startDate = new Date(booking.checkIn);
+      const endDate = new Date(booking.checkOut);
+
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      // Check if date is within booking range
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        if (normalizeDate(currentDate) === normalizeDateStr) {
+          return true;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return false;
+    });
+  };
+
+  const tileDisabled = ({
+    date,
+    view,
+  }: {
+    date: Date;
+    view: string;
+  }): boolean => {
     if (view !== 'month') return false;
 
-    // Disable past dates and today
+    // Disable past dates
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (date < today) return true;
 
-    // Disable unavailable dates
-    return unavailableDates.some(
-      (unavailableDate) =>
-        date.getDate() === unavailableDate.getDate() &&
-        date.getMonth() === unavailableDate.getMonth() &&
-        date.getFullYear() === unavailableDate.getFullYear()
-    );
-  };
-
-  // Custom class for calendar tiles
-  const tileClassName = ({ date, view }: { date: Date; view: string }) => {
-    if (view !== 'month') return '';
-
-    // For unavailable dates
-    if (tileDisabled({ date, view })) {
-      return 'unavailable-date';
-    }
-
-    return '';
+    // Disable dates that are unavailable (either host blocked or already booked)
+    return isDateUnavailable(date);
   };
 
   const handleDateChange = (value: any) => {
     setDateRange(value);
   };
 
+  // Handle booking button click
   const handleBookingClick = () => {
     if (!isAuthenticated) {
-      // Redirect to login page with a return URL to come back to this room
       navigate(`/auth/login?redirect=/rooms/${roomId}`);
       return;
     }
 
+    if (isDateRangeConflicting) {
+      toast.error(
+        'Cannot book on unavailable dates. Please select different dates.'
+      );
+      return;
+    }
+
     if (dateRange[0] && dateRange[1]) {
-      // Format dates for display in payment page
       const formattedCheckInDate = formatDate(dateRange[0]);
       const formattedCheckOutDate = formatDate(dateRange[1]);
 
-      // Always pass the selected or default times for the booking
       const finalCheckInTime =
         checkInTime ||
         (room.type === 'stay'
-          ? room.houseRules?.checkInTime || '2:00 PM'
+          ? convertTo12HourFormat(room.houseRules?.checkInTime || '14:00')
           : room.type === 'conference'
           ? '8:00 AM'
           : '10:00 AM');
@@ -172,7 +662,7 @@ const BookingPanel = ({
       const finalCheckOutTime =
         checkOutTime ||
         (room.type === 'stay'
-          ? room.houseRules?.checkOutTime || '12:00 PM'
+          ? convertTo12HourFormat(room.houseRules?.checkOutTime || '12:00')
           : room.type === 'conference'
           ? '5:00 PM'
           : '10:00 PM');
@@ -182,7 +672,7 @@ const BookingPanel = ({
           bookingDetails: {
             roomId,
             roomName: room.title,
-            roomType: room.type, // Add room type to use in payment page
+            roomType: room.type,
             location: `${room.location.city}, ${room.location.country}`,
             checkInDate: formattedCheckInDate,
             checkOutDate: formattedCheckOutDate,
@@ -201,7 +691,8 @@ const BookingPanel = ({
       });
     }
   };
-  // Format date to display
+
+  // Format date for display
   const formatDate = (date: Date | null) => {
     if (!date) return '';
     return date.toLocaleDateString('en-US', {
@@ -211,7 +702,7 @@ const BookingPanel = ({
     });
   };
 
-  // Handle time selection for flexible time options
+  // Handle time selection
   const handleTimeSelection = (
     timeType: 'checkin' | 'checkout',
     time: string
@@ -223,6 +714,54 @@ const BookingPanel = ({
     }
     setShowTimeSelector(null);
   };
+
+  // Force a UI refresh after mounting to ensure unavailable dates are displayed properly
+  useEffect(() => {
+    console.log('[BookingPanel] Component mounted, initializing calendar');
+
+    // Force a refresh after a short delay to ensure the calendar displays unavailable dates
+    const timer = setTimeout(() => {
+      console.log(
+        '[BookingPanel] Refreshing unavailable dates display',
+        allUnavailableDates.length
+      );
+
+      // If we have unavailable dates, log them for debugging
+      if (allUnavailableDates.length > 0) {
+        console.log(
+          '[BookingPanel] Current unavailable dates:',
+          allUnavailableDates.map((d) => d.toISOString().split('T')[0])
+        );
+      }
+
+      // If we have existing bookings, log them for debugging
+      if (existingBookings.length > 0) {
+        console.log(
+          '[BookingPanel] Current existing bookings:',
+          existingBookings.map((b) => ({
+            id: b._id,
+            status: b.bookingStatus,
+            checkIn: new Date(b.checkIn).toISOString().split('T')[0],
+            checkOut: new Date(b.checkOut).toISOString().split('T')[0],
+          }))
+        );
+      }
+
+      // Only force a re-render if no unavailable dates exist yet
+      // This prevents overwriting the dates that were already processed
+      if (
+        allUnavailableDates.length === 0 &&
+        (unavailableDates.length > 0 || existingBookings.length > 0)
+      ) {
+        console.log(
+          '[BookingPanel] No dates in state yet but have source data, reprocessing'
+        );
+        datesProcessedRef.current = false; // Force reprocessing
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="sticky top-6 bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
@@ -240,6 +779,45 @@ const BookingPanel = ({
         </span>
       </div>
 
+      {/* Availability notice - always show this section */}
+      <div className="mb-4 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm">
+        <div className="flex items-start">
+          <FiAlertCircle className="mt-0.5 mr-2 text-blue-500" />
+          <p className="text-blue-700 dark:text-blue-400">
+            This calendar shows real-time availability.
+            {allUnavailableDates.length > 0 ? (
+              <span>
+                {' '}
+                There are {allUnavailableDates.length} dates unavailable (marked
+                in red).
+              </span>
+            ) : (
+              <span> All dates are currently available for booking.</span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Booking conflicts warning */}
+      {existingBookings.length > 0 && (
+        <div className="mb-4 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-sm">
+          <div className="flex items-start">
+            <FiAlertCircle className="mt-0.5 mr-2 text-yellow-500" />
+            <p className="text-yellow-700 dark:text-yellow-400">
+              This room has {existingBookings.length} existing{' '}
+              {existingBookings.length === 1 ? 'booking' : 'bookings'}. Dates
+              marked in red are already booked and cannot be selected.
+              {!isAuthenticated && (
+                <span className="font-medium">
+                  {' '}
+                  Log in to make a reservation.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Calendar for date selection */}
       <div className="mb-6">
         <h3 className="text-lg font-medium mb-3 flex items-center">
@@ -248,6 +826,7 @@ const BookingPanel = ({
         </h3>
         <div className="calendar-container dark:text-darkBlue flex justify-center">
           <Calendar
+            key={calendarKey.current}
             onChange={handleDateChange}
             value={dateRange}
             selectRange={true}
@@ -256,11 +835,34 @@ const BookingPanel = ({
             className="w-full border-0 rounded-lg overflow-hidden"
           />
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          * Red dates are unavailable
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
+          <div className="flex items-center">
+            <span className="inline-block w-3 h-3 bg-red-400 dark:bg-red-500 rounded-full mr-1"></span>
+            <span>Unavailable dates ({allUnavailableDates.length})</span>
+          </div>
+          {userBookings && userBookings.length > 0 && (
+            <div className="flex items-center">
+              <span className="inline-block w-3 h-3 bg-indigo-400 dark:bg-indigo-500 rounded-full mr-1"></span>
+              <span>Your bookings for this room</span>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Warning for conflicting dates */}
+      {isDateRangeConflicting && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+          <div className="flex items-start">
+            <FiAlertCircle className="mt-0.5 mr-2 text-red-500" />
+            <p className="text-red-700 dark:text-red-400 text-sm">
+              Some of your selected dates are unavailable. Please choose
+              different dates.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Rest of the component remains unchanged */}
       {/* Time selection section - Only show for conference rooms and events spaces */}
       {allowsTimeSelection() && (
         <div className="mb-6">
@@ -332,7 +934,7 @@ const BookingPanel = ({
       )}
 
       {/* Booking details */}
-      {dateRange[0] && dateRange[1] ? (
+      {dateRange[0] && dateRange[1] && !isDateRangeConflicting ? (
         <div className="mb-6 space-y-3">
           <h3 className="text-lg font-medium">Booking Details</h3>
           <div className="flex justify-between">
@@ -380,7 +982,9 @@ const BookingPanel = ({
         </div>
       ) : (
         <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-          Select dates to see booking details
+          {isDateRangeConflicting
+            ? 'Please select available dates'
+            : 'Select dates to see booking details'}
         </div>
       )}
 
@@ -388,20 +992,22 @@ const BookingPanel = ({
       <button
         onClick={handleBookingClick}
         className={`w-full py-3 px-4 rounded-lg font-medium transition ${
-          dateRange[0] && dateRange[1]
+          dateRange[0] && dateRange[1] && !isDateRangeConflicting
             ? 'bg-darkBlue text-light dark:bg-light dark:text-darkBlue hover:opacity-90'
             : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
         }`}
-        disabled={!dateRange[0] || !dateRange[1]}>
+        disabled={!dateRange[0] || !dateRange[1] || isDateRangeConflicting}>
         {!isAuthenticated
           ? 'Log in to Book'
+          : isDateRangeConflicting
+          ? 'Selected Dates Unavailable'
           : dateRange[0] && dateRange[1]
           ? 'Book Now'
           : 'Select Dates to Book'}
       </button>
 
       {/* Reservation note - modified to show login message if not authenticated */}
-      {dateRange[0] && dateRange[1] && (
+      {dateRange[0] && dateRange[1] && !isDateRangeConflicting && (
         <p className="text-center mt-2 text-xs text-gray-500 dark:text-gray-400">
           {isAuthenticated
             ? "You won't be charged until confirmation"

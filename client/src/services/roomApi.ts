@@ -1,4 +1,4 @@
-import { fetchWithAuth } from './core';
+import { fetchWithAuth, fetchPublic } from './core';
 import { API_URL } from './core';
 
 export const roomApi = {
@@ -19,9 +19,184 @@ export const roomApi = {
     }
   },
 
+  getAvailabilityForDateRange: async (
+    roomId: string,
+    startDate: Date,
+    endDate: Date
+  ) => {
+    try {
+      const formattedStart = startDate.toISOString().split('T')[0];
+      const formattedEnd = endDate.toISOString().split('T')[0];
+
+      // Add cache busting to avoid stale data
+      const cacheBuster = Date.now();
+
+      console.log(
+        `[API] Fetching availability for room ${roomId} from ${formattedStart} to ${formattedEnd}`
+      );
+
+      const response = await fetchPublic(
+        `/api/rooms/${roomId}/availability?startDate=${formattedStart}&endDate=${formattedEnd}&_cb=${cacheBuster}`,
+        {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(
+          `[API] Availability API returned ${response.status}:`,
+          errorData
+        );
+        return {
+          success: false,
+          message: errorData.message || 'Failed to fetch room availability',
+          data: {
+            roomId: roomId,
+            unavailableDates: [],
+            existingBookings: [],
+          },
+        };
+      }
+
+      const data = await response.json();
+      console.log('[API] Raw response from availability API:', data);
+
+      // Process and validate the response data
+      if (data.success && data.data) {
+        // Ensure roomId is included in the response data for client verification
+        data.data.roomId = roomId;
+
+        // Make sure all booking entries have roomId set
+        if (
+          data.data.existingBookings &&
+          Array.isArray(data.data.existingBookings)
+        ) {
+          data.data.existingBookings = data.data.existingBookings.map(
+            (booking: any) => {
+              // Ensure each booking has roomId
+              const updatedBooking = {
+                ...booking,
+                roomId: booking.roomId || roomId,
+              };
+
+              // Ensure checkIn and checkOut are Date objects
+              if (booking.checkIn && !(booking.checkIn instanceof Date)) {
+                updatedBooking.checkIn = new Date(booking.checkIn);
+                // Ensure all dates have proper time components at midnight
+                updatedBooking.checkIn.setHours(0, 0, 0, 0);
+              }
+
+              if (booking.checkOut && !(booking.checkOut instanceof Date)) {
+                updatedBooking.checkOut = new Date(booking.checkOut);
+                // Ensure all dates have proper time components at midnight
+                updatedBooking.checkOut.setHours(0, 0, 0, 0);
+              }
+
+              return updatedBooking;
+            }
+          );
+
+          // Log processed bookings for debugging
+          console.log(
+            `[API] Processed ${data.data.existingBookings.length} bookings:`,
+            data.data.existingBookings.map((b: any) => ({
+              id: b._id,
+              status: b.bookingStatus,
+              checkIn:
+                b.checkIn instanceof Date
+                  ? b.checkIn.toISOString().split('T')[0]
+                  : 'invalid date',
+              checkOut:
+                b.checkOut instanceof Date
+                  ? b.checkOut.toISOString().split('T')[0]
+                  : 'invalid date',
+            }))
+          );
+        } else {
+          data.data.existingBookings = [];
+          console.log('[API] No existing bookings found in response');
+        }
+
+        // Validate and format unavailable dates
+        if (
+          data.data.unavailableDates &&
+          Array.isArray(data.data.unavailableDates)
+        ) {
+          data.data.unavailableDates = data.data.unavailableDates
+            .map((date: string | Date) => {
+              // Handle various date formats
+              if (date instanceof Date && !isNaN(date.getTime())) {
+                const normalizedDate = new Date(date);
+                normalizedDate.setHours(0, 0, 0, 0);
+                return normalizedDate;
+              }
+
+              // For string dates or other formats
+              try {
+                const parsedDate = new Date(date);
+                if (!isNaN(parsedDate.getTime())) {
+                  parsedDate.setHours(0, 0, 0, 0);
+                  return parsedDate;
+                }
+              } catch (err) {
+                console.warn(`[API] Failed to parse date: ${date}`, err);
+              }
+
+              return null;
+            })
+            .filter(
+              (date: Date | null): date is Date =>
+                date !== null && !isNaN(date.getTime())
+            );
+
+          // Log processed unavailable dates for debugging
+          console.log(
+            `[API] Processed ${data.data.unavailableDates.length} unavailable dates:`,
+            data.data.unavailableDates.map(
+              (d: Date) => d.toISOString().split('T')[0]
+            )
+          );
+        } else {
+          data.data.unavailableDates = [];
+          console.log('[API] No unavailable dates found in response');
+        }
+
+        console.log(
+          `[API] Retrieved ${
+            data.data.existingBookings?.length || 0
+          } bookings and ${
+            data.data.unavailableDates?.length || 0
+          } unavailable dates for room ${roomId}`
+        );
+      } else {
+        console.warn(
+          '[API] Availability API returned success: false or missing data'
+        );
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[API] Error fetching room availability:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch room availability',
+        data: {
+          roomId: roomId,
+          unavailableDates: [],
+          existingBookings: [],
+        },
+      };
+    }
+  },
+
   getRoomById: async (roomId: string) => {
     try {
-      const response = await fetchWithAuth(`/api/rooms/${roomId}`);
+      const response = await fetchPublic(`/api/rooms/${roomId}`);
       const data = await response.json();
       return data;
     } catch (error) {

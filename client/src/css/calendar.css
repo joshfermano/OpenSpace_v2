@@ -1,14 +1,13 @@
 .react-calendar {
     width: 100%;
     max-width: 100%;
-    background-color: #ffffff;
+    background-color: #fff;
     color: #222;
-    border-radius: 12px;
+    border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
-    line-height: 1.5;
-    border: none !important;
-    padding: 16px;
+    font-family: 'Poppins', Arial, sans-serif;
+    line-height: 1.125em;
+    border: 1px solid #ddd;
 }
 
 /* Dark mode styles */
@@ -16,24 +15,20 @@
     background-color: #1e293b;
     color: #e2e8f0;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    border-color: #334155;
 }
 
 /* Navigation area */
 .react-calendar__navigation {
     display: flex;
-    align-items: center;
-    margin-bottom: 16px;
+    height: 44px;
+    margin-bottom: 10px;
 }
 
 .react-calendar__navigation button {
+    min-width: 44px;
     background: none;
-    border: 0;
-    color: #1e293b;
     font-size: 16px;
-    font-weight: 500;
-    padding: 8px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
 }
 
 .dark .react-calendar__navigation button {
@@ -42,7 +37,8 @@
 
 .react-calendar__navigation button:enabled:hover,
 .react-calendar__navigation button:enabled:focus {
-    background-color: #f1f5f9;
+    background-color: #e6e6e6;
+    border-radius: 8px;
 }
 
 .dark .react-calendar__navigation button:enabled:hover,
@@ -62,20 +58,15 @@
 
 /* Month view */
 .react-calendar__month-view__weekdays {
+    text-align: center;
     text-transform: uppercase;
-    font-weight: 600;
-    font-size: 12px;
+    font-weight: bold;
+    font-size: 0.75em;
     margin-bottom: 8px;
 }
 
 .react-calendar__month-view__weekdays__weekday {
-    padding: 8px 0;
-    text-align: center;
-    color: #64748b;
-}
-
-.dark .react-calendar__month-view__weekdays__weekday {
-    color: #94a3b8;
+    padding: 8px;
 }
 
 .react-calendar__month-view__weekdays abbr {
@@ -85,18 +76,13 @@
 
 /* Days */
 .react-calendar__tile {
-    padding: 10px 8px;
-    background: none;
+    max-width: 100%;
     text-align: center;
-    line-height: 20px;
-    font-size: 14px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
+    padding: 10px 0;
+    background: none;
+    border-radius: 6px;
     position: relative;
-    aspect-ratio: 1 / 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    transition: none !important;
 }
 
 .react-calendar__tile--now {
@@ -111,20 +97,19 @@
 .react-calendar__tile--active,
 .react-calendar__tile--active:enabled:hover,
 .react-calendar__tile--active:enabled:focus {
-    background-color: #0284c7;
-    color: #ffffff;
-    font-weight: 600;
+    background-color: #0f172a !important;
+    color: white !important;
+    border-radius: 6px;
 }
 
-.dark .react-calendar__tile--active,
-.dark .react-calendar__tile--active:enabled:hover,
-.dark .react-calendar__tile--active:enabled:focus {
-    background-color: #0ea5e9;
+.dark .react-calendar__tile--active {
+    background-color: #4f46e5 !important;
 }
 
 .react-calendar__tile:enabled:hover,
 .react-calendar__tile:enabled:focus {
-    background-color: #f1f5f9;
+    background-color: #e6e6e6;
+    border-radius: 6px;
 }
 
 .dark .react-calendar__tile:enabled:hover,
@@ -132,78 +117,102 @@
     background-color: #334155;
 }
 
-/* Improved unavailable dates styling */
 .react-calendar__tile--disabled {
-    background-color: #f8f8f8 !important;
-    color: #f87171 !important;
-    /* Slightly red text */
-    opacity: 0.7;
-    cursor: not-allowed !important;
+    background-color: transparent !important;
     position: relative;
+    cursor: not-allowed !important;
+    color: #cbd5e1 !important;
+    overflow: hidden;
 }
 
 .dark .react-calendar__tile--disabled {
-    background-color: #1e293b !important;
-    color: #ef4444 !important;
-    /* Brighter red for dark mode */
-    opacity: 0.6;
+    color: #475569 !important;
 }
 
 /* Add a subtle striped pattern to unavailable dates */
-.react-calendar__tile--disabled:before {
+.react-calendar__tile--disabled::before {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    background-color: #f87171;
+    border-radius: 50%;
+    opacity: 0.8;
+}
+
+.dark .react-calendar__tile--disabled::before {
+    background-color: #ef4444;
+    opacity: 0.7;
+}
+
+.react-calendar__tile--disabled:hover {
+    background-color: rgba(248, 113, 113, 0.08) !important;
+}
+
+.dark .react-calendar__tile--disabled:hover {
+    background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+/* Range selection */
+.react-calendar__tile--rangeStart,
+.react-calendar__tile--rangeEnd {
+    background-color: #0f172a !important;
+    color: white !important;
+    border-radius: 6px;
+}
+
+.dark .react-calendar__tile--rangeStart,
+.dark .react-calendar__tile--rangeEnd {
+    background-color: #4f46e5 !important;
+}
+
+.react-calendar__tile--rangeStart:after,
+.react-calendar__tile--rangeEnd:after {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: repeating-linear-gradient(-45deg,
-            rgba(239, 68, 68, 0.08),
-            rgba(239, 68, 68, 0.08) 3px,
-            transparent 3px,
-            transparent 6px);
-    border-radius: 8px;
     z-index: -1;
+    border-radius: 50%;
 }
 
-.dark .react-calendar__tile--disabled:before {
-    background: repeating-linear-gradient(-45deg,
-            rgba(239, 68, 68, 0.15),
-            rgba(239, 68, 68, 0.15) 3px,
-            transparent 3px,
-            transparent 6px);
-}
-
-/* Remove the old 'after' styling since we're using a better approach */
-.react-calendar__tile--disabled:after {
-    display: none;
-}
-
-/* Range selection */
-.react-calendar__tile--rangeStart,
-.react-calendar__tile--rangeEnd {
-    background-color: #0284c7 !important;
+.react-calendar__tile--rangeStart:enabled:hover,
+.react-calendar__tile--rangeEnd:enabled:hover,
+.react-calendar__tile--rangeStart:enabled:focus,
+.react-calendar__tile--rangeEnd:enabled:focus {
+    background-color: #0f172a !important;
     color: white !important;
-    z-index: 1;
-    font-weight: 600;
 }
 
-.dark .react-calendar__tile--rangeStart,
-.dark .react-calendar__tile--rangeEnd {
-    background-color: #0ea5e9 !important;
+.dark .react-calendar__tile--rangeStart:enabled:hover,
+.dark .react-calendar__tile--rangeEnd:enabled:hover,
+.dark .react-calendar__tile--rangeStart:enabled:focus,
+.dark .react-calendar__tile--rangeEnd:enabled:focus {
+    background-color: #4f46e5 !important;
 }
 
 .react-calendar__tile--rangeBetween {
-    background-color: rgba(2, 132, 199, 0.2) !important;
-    color: #0f172a !important;
+    background-color: rgba(15, 23, 42, 0.1) !important;
 }
 
 .dark .react-calendar__tile--rangeBetween {
-    background-color: rgba(14, 165, 233, 0.2) !important;
-    color: #f1f5f9 !important;
+    background-color: rgba(79, 70, 229, 0.2) !important;
 }
 
-/* Month and year pickers */
+.react-calendar__tile:not(.react-calendar__tile--disabled):hover {
+    background-color: #e0f2fe !important;
+    transition: background-color 0.2s ease;
+}
+
+.dark .react-calendar__tile:not(.react-calendar__tile--disabled):hover {
+    background-color: #0c4a6e !important;
+}
+
 .react-calendar__year-view__months__month,
 .react-calendar__decade-view__years__year,
 .react-calendar__century-view__decades__decade {
@@ -218,7 +227,6 @@
     background-color: #38bdf8;
 }
 
-/* Calendar container */
 .calendar-container {
     border-radius: 12px;
     overflow: hidden;
@@ -229,23 +237,291 @@
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
 
-/* Improved tooltip for unavailable dates */
 .react-calendar__tile--disabled:hover::after {
     content: 'Unavailable';
     position: absolute;
-    top: -30px;
+    bottom: -30px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: rgba(15, 23, 42, 0.9);
+    background-color: #0f172a;
     color: #fff;
-    font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 6px;
     z-index: 10;
     white-space: nowrap;
+    letter-spacing: 0.3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .dark .react-calendar__tile--disabled:hover::after {
-    background-color: rgba(226, 232, 240, 0.9);
+    background-color: #f8fafc;
     color: #0f172a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.unavailable-date {
+    background-color: rgba(248, 113, 113, 0.2) !important;
+    color: #ef4444 !important;
+    cursor: not-allowed !important;
+    text-decoration: line-through;
+    position: relative;
+}
+
+.dark .unavailable-date {
+    background-color: rgba(248, 113, 113, 0.15) !important;
+    color: #ef4444 !important;
+}
+
+.unavailable-date::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    opacity: 1;
+}
+
+.dark .unavailable-date::after {
+    background-color: #f87171;
+}
+
+/* Add a strike-through visual for unavailable dates */
+.unavailable-date::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0z' fill='none'/%3E%3Cpath d='M10 0C4.477 0 0 4.477 0 10c0 5.523 4.477 10 10 10s10-4.477 10-10c0-5.523-4.477-10-10-10zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8zm3.707-11.707a1 1 0 00-1.414 0L10 8.586 7.707 6.293a1 1 0 00-1.414 1.414L8.586 10l-2.293 2.293a1 1 0 101.414 1.414L10 11.414l2.293 2.293a1 1 0 001.414-1.414L11.414 10l2.293-2.293a1 1 0 000-1.414z' fill='%23ef4444' fill-opacity='0.5'/%3E%3C/svg%3E") no-repeat center center;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.dark .unavailable-date::before {
+    background-color: rgba(248, 113, 113, 0.5);
+}
+
+/* Enhanced hover effect for unavailable dates */
+.react-calendar__tile.unavailable-date:hover {
+    background-color: rgba(248, 113, 113, 0.2) !important;
+}
+
+.dark .react-calendar__tile.unavailable-date:hover {
+    background-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+.react-calendar__tile--active {
+    background-color: #3b82f6 !important;
+    color: white !important;
+    font-weight: 500;
+}
+
+.react-calendar__tile:enabled:hover {
+    background-color: #dbeafe;
+}
+
+.react-calendar__tile--active {
+    background-color: #3b82f6 !important;
+    color: white !important;
+}
+
+.react-calendar__tile--rangeStart,
+.react-calendar__tile--rangeEnd {
+    background-color: #2563eb !important;
+    color: white !important;
+    z-index: 1;
+    font-weight: 600;
+}
+
+.react-calendar__tile--rangeBetween {
+    background-color: #dbeafe !important;
+    color: #1e3a8a !important;
+}
+
+/* Past dates styling */
+.past-date {
+    color: #cccccc !important;
+    cursor: not-allowed !important;
+}
+
+.dark .past-date {
+    color: #475569 !important;
+}
+
+.past-date::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: #94a3b8;
+    border-radius: 50%;
+    opacity: 0.8;
+}
+
+.dark .past-date::after {
+    background-color: #64748b;
+}
+
+/* Add styles for dates booked by the current user */
+.user-booked-date {
+    background-color: rgba(79, 70, 229, 0.2) !important;
+    color: #4f46e5 !important;
+    cursor: not-allowed !important;
+    border: 2px dashed #4f46e5;
+}
+
+.dark .user-booked-date {
+    background-color: rgba(99, 102, 241, 0.3) !important;
+    color: #6366f1 !important;
+    border: 2px dashed #818cf8;
+}
+
+.user-booked-date::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: #6366f1;
+    /* Indigo */
+    border-radius: 50%;
+    opacity: 1;
+}
+
+.dark .user-booked-date::after {
+    background-color: #818cf8;
+    /* Light indigo */
+}
+
+/* Add a checkmark visual for user's booked dates */
+.user-booked-date::before {
+    content: '✓';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 8px;
+    color: #6366f1;
+    font-weight: bold;
+}
+
+.dark .user-booked-date::before {
+    color: #818cf8;
+}
+
+/* Enhanced hover effect for user booked dates */
+.react-calendar__tile.user-booked-date:hover {
+    background-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+.dark .react-calendar__tile.user-booked-date:hover {
+    background-color: rgba(129, 140, 248, 0.3) !important;
+}
+
+/* Add tooltip for user booked dates */
+.react-calendar__tile.user-booked-date:hover::after {
+    content: 'Your booking';
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #6366f1;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 6px;
+    z-index: 10;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dark .react-calendar__tile.user-booked-date:hover::after {
+    background-color: #818cf8;
+    color: #0f172a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Specific styling for tile disabled state */
+.react-calendar__tile:disabled {
+    opacity: 0.8;
+    cursor: not-allowed !important;
+}
+
+/* Make unavailable dates more prominent and more stable */
+.react-calendar__tile.unavailable-date,
+.react-calendar__tile--disabled.unavailable-date,
+.react-calendar__tile--disabled {
+    background-color: rgba(248, 113, 113, 0.3) !important;
+    color: #ef4444 !important;
+    cursor: not-allowed !important;
+    text-decoration: line-through !important;
+    position: relative !important;
+    font-weight: bold !important;
+    opacity: 0.9 !important;
+    transition: none !important;
+}
+
+.dark .react-calendar__tile.unavailable-date,
+.dark .react-calendar__tile--disabled.unavailable-date,
+.dark .react-calendar__tile--disabled {
+    background-color: rgba(248, 113, 113, 0.25) !important;
+    color: #f87171 !important;
+}
+
+/* Add a more visible diagonal strikethrough for unavailable dates */
+.unavailable-date::before,
+.react-calendar__tile--disabled::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: url("data:image/svg+xml,%3Csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='100%25' x2='100%25' y2='0' stroke='%23ef4444' stroke-width='2'/%3E%3C/svg%3E") !important;
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+    z-index: 1 !important;
+}
+
+/* Add a strong red X marker in the center of unavailable dates */
+.unavailable-date::after,
+.react-calendar__tile--disabled::after {
+    content: '×' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    font-size: 18px !important;
+    color: #ef4444 !important;
+    font-weight: bold !important;
+    opacity: 0.7 !important;
+    z-index: 2 !important;
+    pointer-events: none !important;
+}
+
+/* Prevent hover effects from changing the styling of unavailable dates */
+.react-calendar__tile.unavailable-date:hover,
+.react-calendar__tile--disabled:hover {
+    background-color: rgba(248, 113, 113, 0.3) !important;
+    color: #ef4444 !important;
+    cursor: not-allowed !important;
+    opacity: 0.9 !important;
+}
+
+/* Ensure calendar tiles maintain proper styles */
+.react-calendar__tile {
+    transition: none !important;
 }

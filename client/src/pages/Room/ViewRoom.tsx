@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { FiMapPin, FiHeart } from 'react-icons/fi';
 import { FaHeart } from 'react-icons/fa';
 import { IoMdArrowBack } from 'react-icons/io';
 import { useAuth } from '../../contexts/AuthContext';
 import { roomApi } from '../../services/roomApi';
+import { bookingApi } from '../../services/bookingApi';
 import ReviewArea from '../../components/Room/ReviewArea';
 import ImageGallery from '../../components/Room/ImageGallery';
 import RoomDetails from '../../components/Room/RoomDetails';
@@ -14,6 +15,7 @@ import placeholder from '../../assets/logo_black.jpg';
 import { API_URL } from '../../services/core';
 import { handleImageError } from '../../utils/imageUtils';
 import '../../css/calendar.css';
+import { toast } from 'react-toastify';
 
 const ViewRoom = () => {
   const { roomId } = useParams();
@@ -25,42 +27,187 @@ const ViewRoom = () => {
   const [isFavorite, setIsFavorite] = useState(false);
   const [toggleFavoriteLoading, setToggleFavoriteLoading] = useState(false);
   const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
+  const [existingBookings, setExistingBookings] = useState<any[]>([]);
+  const [userBookings, setUserBookings] = useState<any[]>([]);
 
-  // Helper function to get the full image URL
+  // Refs to track data loading and prevent disappearing dates
+  const availabilityFetchedRef = useRef(false);
+  const componentMountedRef = useRef(true);
+
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return placeholder;
     if (imagePath.startsWith('http')) return imagePath;
     return `${API_URL}${imagePath}`;
   };
 
-  // Fetch room data and check if it's in user's favorites
+  const fetchRoomAvailability = async (roomId: string) => {
+    // If we've already fetched availability data and have unavailable dates, don't fetch again
+    if (availabilityFetchedRef.current && unavailableDates.length > 0) {
+      console.log(
+        '[ViewRoom] Availability data already fetched, using cached data'
+      );
+      return;
+    }
+
+    try {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(endDate.getFullYear() + 1);
+
+      console.log(`[ViewRoom] Fetching availability for room ${roomId}`);
+
+      const availabilityResponse = await roomApi.getAvailabilityForDateRange(
+        roomId,
+        startDate,
+        endDate
+      );
+
+      // Skip processing if component unmounted during fetch
+      if (!componentMountedRef.current) return;
+
+      if (availabilityResponse.success) {
+        const {
+          unavailableDates,
+          existingBookings,
+          roomId: responseRoomId,
+        } = availabilityResponse.data;
+
+        // Verify that the response is for the current room
+        if (responseRoomId && responseRoomId !== roomId) {
+          console.error('[ViewRoom] Room ID mismatch in availability response');
+          return;
+        }
+
+        // Log raw data for debugging
+        console.log(
+          '[ViewRoom] Raw unavailable dates from API:',
+          unavailableDates
+        );
+        console.log(
+          '[ViewRoom] Raw existing bookings from API:',
+          existingBookings
+        );
+
+        // Convert all unavailable dates to Date objects with consistent time (midnight)
+        const formattedUnavailableDates = (unavailableDates || [])
+          .map((dateString: string | Date) => {
+            const date = new Date(dateString);
+            date.setHours(0, 0, 0, 0);
+            return date;
+          })
+          .filter((date: Date) => !isNaN(date.getTime())); // Filter out invalid dates
+
+        let allExistingBookings = [...(existingBookings || [])];
+
+        // Make sure all existing bookings have roomId set
+        allExistingBookings = allExistingBookings.map((booking) => {
+          // If booking doesn't have roomId, add the current roomId
+          const updatedBooking = {
+            ...booking,
+            roomId: booking.roomId || roomId,
+          };
+
+          // Ensure checkIn and checkOut are proper Date objects
+          if (booking.checkIn) {
+            updatedBooking.checkIn = new Date(booking.checkIn);
+            updatedBooking.checkIn.setHours(0, 0, 0, 0);
+          }
+
+          if (booking.checkOut) {
+            updatedBooking.checkOut = new Date(booking.checkOut);
+            updatedBooking.checkOut.setHours(0, 0, 0, 0);
+          }
+
+          return updatedBooking;
+        });
+
+        console.log(
+          `[ViewRoom] Room ${roomId} - Received ${allExistingBookings.length} bookings from server`
+        );
+
+        // Debug each booking
+        allExistingBookings.forEach((booking, index) => {
+          const checkIn = new Date(booking.checkIn);
+          const checkOut = new Date(booking.checkOut);
+
+          console.log(
+            `[ViewRoom] Booking ${index + 1}: ID=${booking._id}, Status=${
+              booking.bookingStatus
+            }, Check-in=${checkIn.toISOString().split('T')[0]}, Check-out=${
+              checkOut.toISOString().split('T')[0]
+            }`
+          );
+        });
+
+        // Only update state if we have valid data
+        if (
+          formattedUnavailableDates.length > 0 ||
+          allExistingBookings.length > 0
+        ) {
+          setUnavailableDates(formattedUnavailableDates);
+          setExistingBookings(allExistingBookings);
+          availabilityFetchedRef.current = true;
+
+          console.log(
+            `[ViewRoom] Room ${roomId} - Setting ${allExistingBookings.length} existing bookings and ${formattedUnavailableDates.length} unavailable dates`
+          );
+        }
+      } else {
+        toast.error('Failed to load room availability');
+        console.error(
+          '[ViewRoom] Error fetching room availability:',
+          availabilityResponse.message
+        );
+      }
+    } catch (error) {
+      console.error('[ViewRoom] Error in fetchRoomAvailability:', error);
+    }
+  };
+
+  // When component mounts/unmounts
+  useEffect(() => {
+    componentMountedRef.current = true;
+
+    return () => {
+      componentMountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     const fetchRoomData = async () => {
       if (!roomId) return;
 
       setLoading(true);
       try {
-        // Fetch room details
         const response = await roomApi.getRoomById(roomId);
 
         if (response.success) {
           setRoom(response.data);
 
-          // Set unavailable dates
           if (
             response.data.availability &&
             response.data.availability.unavailableDates
           ) {
             const convertedDates =
               response.data.availability.unavailableDates.map(
-                (dateString: string) => new Date(dateString)
+                (dateString: string) => {
+                  const date = new Date(dateString);
+                  date.setHours(0, 0, 0, 0); // Normalize time
+                  return date;
+                }
               );
-            setUnavailableDates(convertedDates);
+            // Set initial unavailable dates if not already set
+            if (unavailableDates.length === 0) {
+              setUnavailableDates(convertedDates);
+            }
           }
 
-          // Check if this room is in user's favorites
+          // Always fetch room availability regardless of authentication status
+          await fetchRoomAvailability(roomId);
+
           if (isAuthenticated) {
             try {
+              // Check favorite status
               const favoritesResponse = await roomApi.getFavoriteRooms();
               if (favoritesResponse.success) {
                 const isSaved = favoritesResponse.data.some(
@@ -68,15 +215,46 @@ const ViewRoom = () => {
                 );
                 setIsFavorite(isSaved);
               }
+
+              // Fetch user's bookings
+              const userBookingsResponse = await bookingApi.getUserBookings();
+              if (userBookingsResponse.success && userBookingsResponse.data) {
+                console.log(
+                  'User bookings fetched:',
+                  userBookingsResponse.data
+                );
+
+                // Filter bookings for the current room
+                const filteredBookings = userBookingsResponse.data.filter(
+                  (booking: any) => booking.room && booking.room._id === roomId
+                );
+
+                // Format user bookings for calendar
+                const formattedUserBookings = filteredBookings.map(
+                  (booking: any) => ({
+                    _id: booking._id,
+                    roomId: booking.room._id,
+                    checkIn: booking.checkIn,
+                    checkOut: booking.checkOut,
+                    checkInTime: booking.checkInTime,
+                    checkOutTime: booking.checkOutTime,
+                    bookingStatus: booking.bookingStatus,
+                  })
+                );
+
+                setUserBookings(formattedUserBookings);
+              }
             } catch (error) {
-              console.error('Error checking favorite status:', error);
+              console.error('Error fetching user data:', error);
             }
           }
         } else {
           console.error('Error fetching room:', response.message);
+          toast.error('Failed to load room details');
         }
       } catch (error) {
         console.error('Error:', error);
+        toast.error('An error occurred while loading the room');
       } finally {
         setLoading(false);
       }
@@ -85,10 +263,8 @@ const ViewRoom = () => {
     fetchRoomData();
   }, [roomId, isAuthenticated]);
 
-  // Handle toggling favorite status
   const handleToggleFavorite = async () => {
     if (!isAuthenticated) {
-      // Redirect to login with return URL to this page
       navigate(`/auth/login?redirect=/rooms/${roomId}`);
       return;
     }
@@ -206,7 +382,7 @@ const ViewRoom = () => {
         </div>
 
         {/* Main content grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="flex flex-col md:grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left column - Room details */}
           <div className="col-span-2">
             {/* Image gallery */}
@@ -300,6 +476,8 @@ const ViewRoom = () => {
               roomId={roomId || ''}
               isAuthenticated={isAuthenticated}
               unavailableDates={unavailableDates}
+              existingBookings={existingBookings}
+              userBookings={userBookings}
             />
           </div>
         </div>

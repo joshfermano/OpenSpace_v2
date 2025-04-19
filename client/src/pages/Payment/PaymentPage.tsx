@@ -36,23 +36,34 @@ const PaymentPage = () => {
     accountNumber: '',
     saveForFuture: false,
     guestCount: 1,
+    children: 0,
+    infants: 0,
     specialRequests: '',
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Get booking details from location state or fetch from API
   useEffect(() => {
     if (location.state?.bookingDetails) {
       setBookingDetails(location.state.bookingDetails);
-      // Initialize guest count from booking details if available
       if (location.state.bookingDetails.guestCount) {
         setFormData((prev) => ({
           ...prev,
           guestCount: location.state.bookingDetails.guestCount,
         }));
       }
+      if (location.state.bookingDetails.children !== undefined) {
+        setFormData((prev) => ({
+          ...prev,
+          children: location.state.bookingDetails.children,
+        }));
+      }
+      if (location.state.bookingDetails.infants !== undefined) {
+        setFormData((prev) => ({
+          ...prev,
+          infants: location.state.bookingDetails.infants,
+        }));
+      }
     } else {
-      // If no state is passed, redirect to home
       navigate('/');
     }
   }, [location, navigate]);
@@ -182,7 +193,21 @@ const PaymentPage = () => {
 
     // Validate guest count
     if (formData.guestCount < 1) {
-      newErrors.guestCount = 'At least one guest is required';
+      newErrors.guestCount = 'At least one adult is required';
+    }
+
+    if (formData.children < 0) {
+      newErrors.children = 'Children count cannot be negative';
+    }
+
+    if (formData.infants < 0) {
+      newErrors.infants = 'Infants count cannot be negative';
+    }
+
+    // Check if total guests exceed max guests (if specified)
+    const totalGuests = formData.guestCount + formData.children;
+    if (bookingDetails.maxGuests && totalGuests > bookingDetails.maxGuests) {
+      newErrors.guestCount = `Total guests (${totalGuests}) exceeds maximum allowed (${bookingDetails.maxGuests})`;
     }
 
     setErrors(newErrors);
@@ -232,14 +257,17 @@ const PaymentPage = () => {
       }
     }
 
-    // Booking data structure with the parsed times
     const bookingData = {
       roomId: bookingDetails.roomId,
       checkIn: checkIn.toISOString(),
       checkOut: checkOut.toISOString(),
       checkInTime: checkInTime,
       checkOutTime: checkOutTime,
-      guests: Number(formData.guestCount),
+      guests: {
+        adults: Number(formData.guestCount),
+        children: Number(formData.children),
+        infants: Number(formData.infants),
+      },
       totalPrice: bookingDetails.total,
       priceBreakdown: {
         basePrice: bookingDetails.subtotal,
@@ -434,6 +462,8 @@ const PaymentPage = () => {
             bookingDetails: {
               ...bookingDetails,
               guestCount: formData.guestCount,
+              children: formData.children,
+              infants: formData.infants,
               specialRequests: formData.specialRequests,
             },
             bookingId: booking._id,
@@ -528,7 +558,7 @@ const PaymentPage = () => {
 
         <h1 className="text-2xl font-semibold mb-6">Complete Your Booking</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col gap-2 md:grid md:grid-cols-1 lg:grid-cols-3 md:gap-6">
           {/* Payment form section */}
           <div className="col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
@@ -541,7 +571,7 @@ const PaymentPage = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Number of Guests
+                      Number of Adults
                     </label>
                     <input
                       type="number"
@@ -559,6 +589,57 @@ const PaymentPage = () => {
                     {errors.guestCount && (
                       <p className="mt-1 text-sm text-red-600">
                         {errors.guestCount}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Number of Children
+                    </label>
+                    <input
+                      type="number"
+                      name="children"
+                      value={formData.children}
+                      onChange={handleInputChange}
+                      min="0"
+                      max={
+                        bookingDetails.maxGuests
+                          ? bookingDetails.maxGuests - formData.guestCount
+                          : 10
+                      }
+                      className={`w-full p-3 border ${
+                        errors.children
+                          ? 'border-red-500'
+                          : 'border-gray-300 dark:border-gray-600'
+                      } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                    />
+                    {errors.children && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.children}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Number of Infants
+                    </label>
+                    <input
+                      type="number"
+                      name="infants"
+                      value={formData.infants}
+                      onChange={handleInputChange}
+                      min="0"
+                      className={`w-full p-3 border ${
+                        errors.infants
+                          ? 'border-red-500'
+                          : 'border-gray-300 dark:border-gray-600'
+                      } rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors`}
+                    />
+                    {errors.infants && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.infants}
                       </p>
                     )}
                   </div>
@@ -931,6 +1012,22 @@ const PaymentPage = () => {
                     <span className="ml-2">
                       {bookingDetails.numberOfDays}{' '}
                       {bookingDetails.numberOfDays > 1 ? 'days' : 'day'}
+                    </span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <FiUser className="mr-2 text-blue-500" />
+                    <span className="font-medium">Guests:</span>
+                    <span className="ml-2">
+                      {formData.guestCount}{' '}
+                      {formData.guestCount === 1 ? 'adult' : 'adults'}
+                      {formData.children > 0 &&
+                        `, ${formData.children} ${
+                          formData.children === 1 ? 'child' : 'children'
+                        }`}
+                      {formData.infants > 0 &&
+                        `, ${formData.infants} ${
+                          formData.infants === 1 ? 'infant' : 'infants'
+                        }`}
                     </span>
                   </div>
                 </div>

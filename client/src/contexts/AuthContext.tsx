@@ -44,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [lastAuthCheck, setLastAuthCheck] = useState(0);
 
   const clearError = () => setError(null);
 
@@ -85,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
       setAuthChecked(true);
+      setLastAuthCheck(Date.now());
     }
   }, []);
 
@@ -111,12 +113,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => clearInterval(refreshInterval);
   }, [user, checkAuth]);
 
-  // Refresh auth when tab becomes visible
+  // Refresh auth when tab becomes visible, but not too frequently
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('Tab became visible, checking auth...');
-        checkAuth();
+        // Only check auth if it's been at least 2 minutes since last check
+        const timeSinceLastCheck = Date.now() - lastAuthCheck;
+        const minimumInterval = 2 * 60 * 1000; // 2 minutes in milliseconds
+
+        if (timeSinceLastCheck > minimumInterval) {
+          console.log('Tab became visible, checking auth after interval...');
+          checkAuth();
+        } else {
+          console.log('Tab became visible, skipping auth check (too soon)');
+        }
       }
     };
 
@@ -125,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkAuth]);
+  }, [checkAuth, lastAuthCheck]);
 
   const refreshUser = async () => {
     try {

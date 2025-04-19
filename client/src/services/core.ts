@@ -6,6 +6,31 @@ export const API_URL = isDev
 
 console.log(`Using API URL: ${API_URL}`);
 
+export const fetchPublic = async (
+  endpoint: string,
+  options: RequestInit = {}
+) => {
+  const defaultHeaders: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  const config: RequestInit = {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...(options.headers || {}),
+    },
+  };
+
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, config);
+    return response;
+  } catch (error) {
+    console.error(`API request failed for ${endpoint}:`, error);
+    throw error;
+  }
+};
+
 export const fetchWithAuth = async (
   endpoint: string,
   options: RequestInit = {}

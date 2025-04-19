@@ -9,6 +9,25 @@ interface TimeSelectorProps {
   onSelect: (time: string) => void;
 }
 
+const convertTo12HourFormat = (time: string): string => {
+  if (time.includes('AM') || time.includes('PM')) {
+    return time;
+  }
+
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+
+  if (hour === 0) {
+    return `12:${minutes} AM`;
+  } else if (hour < 12) {
+    return `${hour}:${minutes} AM`;
+  } else if (hour === 12) {
+    return `12:${minutes} PM`;
+  } else {
+    return `${hour - 12}:${minutes} PM`;
+  }
+};
+
 const TimeSelector = ({
   label,
   selectedTime,
@@ -17,6 +36,9 @@ const TimeSelector = ({
   onToggle,
   onSelect,
 }: TimeSelectorProps) => {
+  // Convert selectedTime to 12-hour format if it's in 24-hour format
+  const displayTime = convertTo12HourFormat(selectedTime);
+
   return (
     <div>
       <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -27,7 +49,7 @@ const TimeSelector = ({
           type="button"
           className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white flex justify-between items-center"
           onClick={onToggle}>
-          <span>{selectedTime}</span>
+          <span>{displayTime}</span>
           <FiClock />
         </button>
 
@@ -40,7 +62,7 @@ const TimeSelector = ({
                 key={time}
                 type="button"
                 className={`w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                  time === selectedTime
+                  convertTo12HourFormat(time) === displayTime
                     ? 'bg-blue-50 dark:bg-blue-900/30 font-medium'
                     : ''
                 }`}
