@@ -6,6 +6,7 @@ export interface IUser extends Document {
   email: string;
   password: string;
   active: boolean;
+  banReason?: string;
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
   firstName: string;
@@ -79,6 +80,9 @@ const userSchema = new Schema<IUser>(
     active: {
       type: Boolean,
       default: true,
+    },
+    banReason: {
+      type: String,
     },
     resetPasswordToken: {
       type: String,

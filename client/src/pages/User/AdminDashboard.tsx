@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiUsers, FiFileText, FiHome } from 'react-icons/fi';
+import { FiUsers, FiFileText, FiHome, FiLock } from 'react-icons/fi';
 import { FiMapPin, FiUser } from 'react-icons/fi';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,6 +8,7 @@ import DashboardSummary from '../../components/Admin/DashboardSummary';
 import UserManagement from '../../components/Admin/UserManagement';
 import VerificationRequests from '../../components/Admin/VerificationRequests';
 import RoomApprovals from '../../components/Admin/RoomApprovals';
+import BannedUsers from '../../components/Admin/BannedUsers';
 import AdminModal from '../../components/Admin/AdminModal';
 import { getImageUrl } from '../../utils/imageUtils';
 
@@ -79,7 +80,7 @@ const AdminDashboard = () => {
   }
 
   const [activeTab, setActiveTab] = useState<
-    'rooms' | 'verifications' | 'users'
+    'rooms' | 'verifications' | 'users' | 'banned'
   >('rooms');
   const [searchTerm, setSearchTerm] = useState('');
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -294,6 +295,7 @@ const AdminDashboard = () => {
     { id: 'rooms' as const, label: 'Room Approvals', icon: FiHome },
     { id: 'verifications' as const, label: 'Verifications', icon: FiFileText },
     { id: 'users' as const, label: 'Users', icon: FiUsers },
+    { id: 'banned' as const, label: 'Banned Users', icon: FiLock },
   ];
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -507,17 +509,19 @@ const AdminDashboard = () => {
           </div>
 
           {/* Search Bar */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder={`Search ${activeTab}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 
-                focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
-            />
-          </div>
+          {activeTab !== 'banned' && (
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={`Search ${activeTab}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                  bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 
+                  focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
+              />
+            </div>
+          )}
 
           {/* Content Area */}
           <div className="mt-6">
@@ -577,6 +581,7 @@ const AdminDashboard = () => {
                 onImageError={handleImageError}
               />
             )}
+            {activeTab === 'banned' && <BannedUsers />}
           </div>
         </div>
       </div>

@@ -874,3 +874,42 @@ export const deleteBooking = async (
     });
   }
 };
+
+// Get banned users
+export const getBannedUsers = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const admin = ensureAdmin(req, res);
+    if (!admin) return;
+
+    // Handle pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get banned users (those with active = false)
+    const bannedUsers = await User.find({ active: false })
+      .select('-password')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const totalBannedUsers = await User.countDocuments({ active: false });
+
+    res.status(200).json({
+      success: true,
+      count: bannedUsers.length,
+      totalPages: Math.ceil(totalBannedUsers / limit),
+      currentPage: page,
+      data: bannedUsers,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching banned users',
+      error: error.message,
+    });
+  }
+};

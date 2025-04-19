@@ -205,6 +205,28 @@ export const adminApi = {
     }
   },
 
+  getBannedUsers: async (page = 1, limit = 10) => {
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      const response = await fetchWithAuth(
+        `/api/admin/users/banned?${queryParams.toString()}`
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching banned users:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch banned users',
+        data: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+
   // ID verification management
   getPendingIdVerifications: async () => {
     try {
